@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AXIS 2.0 · Plataforma Consolidada</title>
+<title>ARES · Plataforma Consolidada</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -393,7 +393,7 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
   <div class="gate-box">
     <div class="gate-head">
       <div class="bm">A</div>
-      <h2>AXIS 2.0</h2>
+      <h2>ARES</h2>
       <p>Inicia sesión para continuar</p>
     </div>
     <div class="gate-body">
@@ -453,7 +453,7 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
       <div class="sb-brand">
         <div class="sb-mark">A</div>
         <div>
-          <h1>AXIS 2.0</h1>
+          <h1>ARES</h1>
           <p>Plataforma consolidada</p>
         </div>
       </div>
@@ -506,7 +506,7 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
    # 05 CONFIG DE NAVEGACIÓN — fuente única de verdad para sidebar + routing
    ============================================================ */
 const NAV = [
-  {group:'export', label:'Export (AXIS)', items:[
+  {group:'export', label:'Export (ARES)', items:[
     {id:'forecast', ix:'01', label:'Forecast'},
     {id:'ports',    ix:'02', label:'Ports'},
     {id:'wep',      ix:'03b',label:'Weekly Export Program'},
@@ -814,7 +814,7 @@ async function loadDataAndInit(){
     ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE, HORIZON_RANGE} = d);
     if (META && META.excel_modified_iso) {
       const dt = new Date(META.excel_modified_iso);
-      document.getElementById('statusTxt').textContent = `Datos AXIS · act. ${dt.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+      document.getElementById('statusTxt').textContent = `Datos ARES · act. ${dt.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
     }
   } catch(e){
     console.error('No se pudo conectar a Supabase, usando datos de muestra de respaldo:', e);
@@ -2813,7 +2813,7 @@ function renderUpload(){
   return `
   <div class="g2" style="grid-template-columns:repeat(3,1fr);">
     <div class="card">
-      <div class="ct">Actualizar Datos — AXIS (Export)</div>
+      <div class="ct">Actualizar Datos — ARES (Export)</div>
       <input type="file" id="upl-file" accept=".xlsm,.xlsx" style="margin-bottom:10px;font-size:11.5px;" />
       <button class="theme-toggle" id="upl-btn" onclick="doUpload('axis')" style="width:100%;justify-content:center;">⬆ Procesar y Publicar</button>
       <div id="upl-status" style="margin-top:10px;font-size:11px;"></div>
