@@ -510,20 +510,25 @@
 const BRIDGES = [
   { id:'chicama',      nombre:'Puente Chicama',      ubicacion:'Km 573 · corredor norte (La Libertad)', corredor:'norte', altAvailable:true,  desvioHoras:2 },
   { id:'jequetepeque',  nombre:'Puente Jequetepeque',  ubicacion:'Km 660 · corredor norte (La Libertad)',  corredor:'norte', altAvailable:true,  desvioHoras:4 },
-  { id:'reque',         nombre:'Puente Reque',         ubicacion:'Km 765 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:false, desvioHoras:0 },
-  // Tramo Morrope (Km 821-829, Lambayeque): 7 puentes consecutivos sobre ramales del río Motupe, todos en
-  // el mismo tramo de la Panamericana Norte de un solo carril por sentido — sin vía alterna que rodee la
-  // zona (el único "desvío" visible en el plano de campo es un by-pass local para evitar el peaje de
-  // Morrope, que vuelve a cruzar los mismos ramales, no una ruta alterna real). En El Niño Costero 2017 este
-  // mismo tramo (Motupe/Morrope) quedó cortado por varios días sin forma de pasar, igual que Puente Reque —
-  // se modelan los 7 con altAvailable:false por ese precedente y por no haber ruta alterna en el plano.
-  { id:'iniche',        nombre:'Puente Iniche',        ubicacion:'Km 821 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'motupeI',       nombre:'Puente Motupe I',      ubicacion:'Km 822 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'naylamp',       nombre:'Puente Naylamp',       ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'elvalle',       nombre:'Puente El Valle',      ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'chinguirito',   nombre:'Puente Chinguirito',   ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'canabrava',     nombre:'Puente Caña Brava',    ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
-  { id:'huerequeque',   nombre:'Puente Huerequeque',   ubicacion:'Km 829 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  // Reque + tramo Morrope (Km 765-829, Lambayeque) + La Leche (Km 860): CORREGIDO con el plan de
+  // continuidad de un transportista (Maersk, "BCP Hortifrut - FEN", rutas alternas validadas en campo,
+  // set. 2026). Su escenario 3 ("Afectación Panamericana Norte Lambayeque-Piura", tramo Chiclayo-Piura,
+  // que cubre toda esta zona) SÍ tiene una alterna real y validada: desvío por Motupe — Olmos — FB-7/1N —
+  // Piura, ~4h50min / 262 km adicionales sobre la ruta principal. Reemplaza el supuesto anterior de "sin
+  // alterna" (basado solo en un plano de campo sin desvío marcado + precedente de El Niño 2017) — con esta
+  // fuente sí hay una vía real, aunque larga, así que se modelan los 8 puntos (Reque + los 7 de Morrope)
+  // como altAvailable:true, desvioHoras:5 (redondeado), igual que La Leche, que ya tenía este supuesto.
+  // Activar esta alterna requiere validación previa según el propio plan del transportista: confirmar
+  // transitabilidad con Provías Nacional/PNP, verificar puentes/quebradas/derrumbes del desvío, restricciones
+  // vigentes y aptitud de la vía para carga pesada — no es un desvío para activar a ciegas.
+  { id:'reque',         nombre:'Puente Reque',         ubicacion:'Km 765 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'iniche',        nombre:'Puente Iniche',        ubicacion:'Km 821 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'motupeI',       nombre:'Puente Motupe I',      ubicacion:'Km 822 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'naylamp',       nombre:'Puente Naylamp',       ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'elvalle',       nombre:'Puente El Valle',      ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'chinguirito',   nombre:'Puente Chinguirito',   ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'canabrava',     nombre:'Puente Caña Brava',    ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
+  { id:'huerequeque',   nombre:'Puente Huerequeque',   ubicacion:'Km 829 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:true, desvioHoras:5 },
   { id:'motupe',        nombre:'Puente La Leche',      ubicacion:'Km 860 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:true,  desvioHoras:5 },
   // Planta Olmos (HFE Berries Perú SAC, Hortifrut Olmos) — tercera planta, al norte de La Leche/Morrope,
   // camino a Piura. Su único acceso a la Panamericana Norte es esta vía (Km 14+210 sobre la propia vía de
