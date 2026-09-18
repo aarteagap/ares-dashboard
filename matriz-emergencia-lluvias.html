@@ -241,7 +241,7 @@
         <span>Riesgo climático · Fenómeno El Niño</span>
       </div>
       <h1>Matriz de Planes de Emergencia ante Lluvias</h1>
-      <div class="hdr-meta">Corredor Panamericana Norte · Chao / Salaverry → Paita / Callao / Chancay · Despachos del 07–17 sep 2026 (datos reales)</div>
+      <div class="hdr-meta">Corredor Panamericana Norte · Chao / Salaverry → Paita / Callao / Chancay · Despachos del 18–28 sep 2026 (datos reales)</div>
     </div>
     <div class="hdr-right">
       <div class="chip" id="statusChip" style="background:rgba(61,220,155,.1); border:1px solid var(--green-line);">
@@ -302,15 +302,15 @@
           <div class="card-sub" style="margin-bottom:14px;">Define entre qué fechas se consideran inoperativos los puentes marcados abajo. Los pedidos con fecha fuera de este rango no se recalculan.</div>
           <div class="assump-row">
             <div class="assump-label">Fecha inicio<br /><small>desde cuándo aplica el corte</small></div>
-            <div class="assump-input"><input type="date" id="inputDateStart" value="2026-09-06" /></div>
+            <div class="assump-input"><input type="date" id="inputDateStart" value="2026-09-18" /></div>
           </div>
           <div class="assump-row">
             <div class="assump-label">Fecha fin<br /><small>hasta cuándo aplica el corte</small></div>
-            <div class="assump-input"><input type="date" id="inputDateEnd" value="2026-09-17" /></div>
+            <div class="assump-input"><input type="date" id="inputDateEnd" value="2026-09-28" /></div>
           </div>
           <div class="assump-row">
             <div class="assump-label">Fecha actual de la simulación<br /><small>define si un pedido ya retiró y si venció el plazo Seaboard / ventana Seatrade</small></div>
-            <div class="assump-input"><input type="date" id="inputSimDate" value="2026-09-07" /></div>
+            <div class="assump-input"><input type="date" id="inputSimDate" value="2026-09-18" /></div>
           </div>
         </div>
 
@@ -517,6 +517,7 @@
               <th>POL → POD</th>
               <th>HORAS CORREDOR (normal + desvío)</th>
               <th>ETD</th>
+              <th>CUT-OFF PUERTO/AEROPUERTO</th>
               <th>DEBE ESTAR CARGADO Y SALIR ANTES DE</th>
               <th>MARGEN DESDE HOY</th>
               <th>ESTADO</th>
@@ -530,13 +531,13 @@
     <div class="assumption-note" style="margin-top:16px;">
       <span>⚠</span>
       <div>
-        <b>Cómo se calcula:</b> hora límite de carga = ETD − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales de esa línea, si hay puente caído con ruta alterna activa). El ETD de cada línea no trae hora (solo día, campo real de Horizon), así que se asume medianoche del día de ETD. No se resta margen de cutoff de puerto (documentación pendiente por línea naviera) — es solo el tránsito Packing → Puerto. Líneas ya <b>FINALIZADAS</b> o <b>CANCELADAS/SIN RUTA</b> no tienen un plazo de carga útil y se muestran aparte.
+        <b>Cómo se calcula:</b> hora límite de carga = <b>Cut-Off</b> − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales de esa línea, si hay puente caído con ruta alterna activa). Se usa el campo real <b>Cut-Off</b> de Horizon cuando la línea lo trae poblado (columna existe en el Excel, hoy solo con datos para Marítimo). Cuando no hay Cut-Off real se cae de vuelta al supuesto anterior: ETD − horas de corredor (el ETD no trae hora, solo día, así que se asume medianoche). Para <b>Aéreo</b>, que en Horizon no trae Cut-Off en ninguna fila, se asume por pedido del usuario <b>cutoff = ETD − 1 día</b> (la carga debe estar en el aeropuerto de Callao a más tardar el día calendario anterior al vuelo) — marcado en la tabla igual que un Cut-Off real, porque es una regla de negocio explícita, no una aproximación de tránsito. Líneas ya <b>FINALIZADAS</b> o <b>CANCELADAS/SIN RUTA</b> no tienen un plazo de carga útil y se muestran aparte.
       </div>
     </div>
   </div>
 
   <div class="footer-note">
-    <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 17 registros de esta simulación son una <b>muestra representativa de despachos reales de Chao</b> tomada del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente, actualizado el 07 sep 2026 (ETD 07–17 sep 2026: 9 Marítimo, 4 Aéreo, 4 Terrestre con fecha ajustada — ver comentario junto a <code>SHIPMENTS</code>) — no es el volumen completo de Chao (~946 filas), sino una muestra con variedad de POD/naviera siguiendo el instructivo de actualización. Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
+    <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 15 registros de esta simulación son una <b>muestra representativa de despachos reales de Chao</b> tomada del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente, actualizado el 18 sep 2026 (ETD 18–28 sep 2026: 9 Marítimo, 2 Aéreo, 4 Terrestre con fecha ajustada — ver comentario junto a <code>SHIPMENTS</code>) — no es el volumen completo de Chao (~1000 filas), sino una muestra con variedad de POD/naviera siguiendo el instructivo de actualización. Incluye el campo real <b>Cut-Off</b> de Horizon donde está poblado (solo Marítimo); para Aéreo, que no trae Cut-Off en Horizon, se asume ETD − 1 día por pedido del usuario. Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
   </div>
 
 </div>
@@ -606,6 +607,9 @@ const PROVIDERS = {
     { id:'KLM',             nombre:'KLM' },
     { id:'Wan Hai',         nombre:'Wan Hai' },
     { id:'United',          nombre:'United' },
+    { id:'CMA CGM',         nombre:'CMA CGM' },
+    { id:'Iberia',          nombre:'Iberia' },
+    { id:'Delta',           nombre:'Delta' },
   ],
   transporte: [
     { id:'LIP',             nombre:'LIP' },
@@ -715,7 +719,7 @@ const D = s => new Date(s);
 // Plazo de retiro Seaboard — último viernes/lunes dentro de la ventana simulada (07–17 sep 2026),
 // actualizado 07 sep 2026 con el archivo HORIZON_FORECAST_2627_V1.xlsm más reciente. Paita vence el lunes
 // siguiente al viernes de Callao (regla de negocio ya confirmada, no depende de la semana simulada).
-const SEABOARD_DEADLINE = { 'Callao': D('2026-09-11'), 'Paita': D('2026-09-14') }; // último día para retirar
+const SEABOARD_DEADLINE = { 'Callao': D('2026-09-25'), 'Paita': D('2026-09-28') }; // último día para retirar
 
 // Ruta terrestre internacional hacia Brasil — solo aplica a mode:'Terrestre'. La carga baja por el
 // MISMO corredor costero hasta Callao (usa RUTA_BRIDGES.Callao, igual que un despacho marítimo) y desde
@@ -749,16 +753,15 @@ const ENFEN_SCHEDULE = [
   { ym:'2027-04', label:'Abril 2027',     risk:'MEDIO',       color:'#eab308', desc:'Disminución gradual de la intensidad del fenómeno.' },
 ];
 
-// DATOS REALES (HORIZON_FORECAST, actualizado 07 sep 2026 siguiendo el instructivo del usuario
-// "instruccionesclaudecodeactualizarmatriz.md"): muestra representativa de 17 despachos reales de Chao
-// (shipper Hortifrut Perú) con ETD entre 07 y 17 sep 2026 (Marítimo/Aéreo) — ventana "hoy hasta +10 días"
-// verificada contra el rango real de ETD del archivo antes de fijarla. Terrestre no tiene ETD reciente en
-// este Excel (la fila más nueva es del 20 ago 2026), así que se tomaron las 4 filas más recientes
-// disponibles y se les asignó una fecha propia dentro de la ventana simulada (marcado en cada línea).
-// No es el volumen completo de Chao (~946 filas) — es una muestra de 9 Marítimo + 4 Aéreo + 4 Terrestre con
-// variedad de POD: Asia (Kaohsiung, Shenzhen), Port Hueneme, Miami, Philadelphia y Europa (Algeciras,
-// Vlissingen) en Marítimo; Tel Aviv, Londres y Amsterdam en Aéreo; Barueri en Terrestre. Salaverry sigue sin
-// despachos reales en este snapshot pero su lógica de ruta queda activa igual que antes.
+// DATOS REALES (HORIZON_FORECAST, actualizado 18 sep 2026 con el archivo más reciente): muestra
+// representativa de 15 despachos reales de Chao (shipper Hortifrut Perú) con ETD entre 18 y 28 sep 2026
+// (Marítimo/Aéreo, ventana "hoy hasta +10 días" verificada contra el rango real de ETD antes de fijarla) —
+// 9 Marítimo + 2 Aéreo + 4 Terrestre. El aéreo esta vez son solo 2 Instructions reales en toda la ventana
+// (y ampliando hasta +14 días tampoco aparecen más) — se usan las 2 reales en vez de forzar 4 de relleno.
+// Terrestre sigue sin ETD reciente en este Excel (fila más nueva del 09 sep 2026), así que se tomaron las 4
+// filas más recientes disponibles y se les asignó una fecha propia dentro de la ventana simulada. Salaverry
+// sigue sin despachos reales; Olmos sí tiene despachos en este archivo pero ninguno cae en esta ventana de
+// 10 días — no se agregó ninguno artificialmente.
 //
 // Regla de tipo (derivada, no es un campo directo del Excel):
 //   Journey Status BASC == 'FINALIZADO'        -> tipo = 'finalizado'
@@ -767,37 +770,40 @@ const ENFEN_SCHEDULE = [
 // Aéreo nunca usa 'retiro' (el Thermoking no retira contenedor) — siempre 'ruta_puerto', y "cargado"
 // (booleano, derivado de Packing Stage Load Status) distingue si ya cargó o no.
 //
-// Agrupación aérea (1 Instruction = 1 camión Thermoking, varios PO parciales que suman ~1 FCL): FCL-10
-// combina 2 Instructions distintas (RH-0687 y RH-0470) porque cada una por separado solo sumaba 0.5 FCL —
-// mismo POD (Tel Aviv) y mismo ETD, se combinan siguiendo la regla de "si un grupo real solo suma 0.5,
-// combínalo con otro Instruction del mismo día/POD". FCL-12 (RH-0648) reparte sus 4 PO a 3 PODs distintos
-// (Londres/Bombay/Delhi) bajo el mismo Instruction — se usan los campos de la primera fila del grupo
-// (simplificación aceptada por el instructivo).
+// POL 'Chancay' se mapea a 'Callao' (FCL-8, FCL-9): mismo corredor/puentes en el modelo — igual que ya se
+// hacía con el POL 'Lima' de los despachos Aéreo.
+//
+// NUEVO — campo "cutoff" (Cut-Off real de Horizon, columna sí existe en el Excel):
+//   Marítimo: se usa el Cut-Off real de Horizon cuando la fila lo trae poblado (FCL-1, FCL-2, FCL-3, FCL-4,
+//   FCL-6). Cuando no está poblado (FCL-5, FCL-7, FCL-8, FCL-9 — ninguna fila Marítimo de esta muestra sin
+//   PO real trae Cut-Off todavía) se omite el campo y la vista de "Plazos de carga en Packing" cae de vuelta
+//   al cálculo aproximado por ETD − horas de corredor.
+//   Aéreo: Horizon NO trae Cut-Off en ninguna fila Aéreo (0 de 260 filas Aéreo de Chao en todo el archivo).
+//   Por pedido del usuario: se asume cutoff = ETD − 1 día (la carga debe estar en el aeropuerto de Callao a
+//   más tardar el día calendario anterior al vuelo).
+//   Terrestre: no tiene concepto de cutoff de puerto/aeropuerto (destino final, no reembarque) — no se
+//   agrega el campo.
 //
 // Net weight no poblado en Horizon para: todo Aéreo (se asume 12,150 kg × FCL, igual que versiones
-// anteriores) y FCL-7/FCL-8 (Marítimo "retiro" sin PO real todavía, Net weight en 0 hasta que se asigne PO).
-// Terrestre tampoco tiene Net weight real salvo FCL-16 (15,288 kg, dato real de Horizon); las otras 3 líneas
-// terrestres usan el mismo estimado de 12,150 kg.
+// anteriores) y FCL-5/FCL-7/FCL-8/FCL-9 (Marítimo "retiro" sin PO real todavía, Net weight en 0 hasta que se
+// asigne PO). Terrestre tampoco tiene Net weight real salvo FCL-15 (15,288 kg, dato real de Horizon); las
+// otras 3 líneas terrestres usan el mismo estimado de 12,150 kg.
 const SHIPMENTS = [
-  { id:'FCL-1', po:'PO00000052451', instruction:'RH-0666', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Wan Hai', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2230, fcl:1, netWeight:14688, fecha:D('2026-09-10'), senasa:'PA', trTime:'13:30', trAssigned:'RICHARD HUASASQUICHE' },
-  { id:'FCL-2', po:'PO00000052449', instruction:'RH-0659', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2640, fcl:1, netWeight:12150, fecha:D('2026-09-10'), senasa:'PA', trTime:'13:30', trAssigned:'RENZO MENDEZ' },
-  { id:'FCL-3', po:'PO00000052231', instruction:'RH-0608', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2290, fcl:1, netWeight:12240, fecha:D('2026-09-07'), senasa:'SENASA', trTime:'15:30', trAssigned:'FERNANDO JOSE CORREA LOPEZ' },
-  { id:'FCL-4', po:'PO00000052417', instruction:'RH-0676', planta:'Chao', pol:'Paita', tipo:'ruta_puerto', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2100, fcl:1, netWeight:12240, fecha:D('2026-09-14'), senasa:'SENASA', trTime:'17:30', trAssigned:'LUIS ALFREDO CARRASCAL CAJUSOL' },
-  { id:'FCL-5', po:'PO00000052227', instruction:'RH-0606', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2390, fcl:1, netWeight:16128, fecha:D('2026-09-10'), senasa:'SENASA', trTime:'15:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-6', po:'PO00000052421', instruction:'RH-0674', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2130, fcl:1, netWeight:16128, fecha:D('2026-09-17'), senasa:'SENASA', trTime:'13:30', trAssigned:'Josman Hernan Galvez Garcia' },
-  { id:'FCL-7', po:'S/PO (por asignar)', instruction:'RH-0764', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Maersk Line', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Algeciras', flete:2490, fcl:1, netWeight:0, fecha:D('2026-09-12'), senasa:'PA', trTime:'11:30' },
-  { id:'FCL-8', po:'S/PO (por asignar)', instruction:'RH-0765', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Vlissingen', flete:2120, fcl:1, netWeight:0, fecha:D('2026-09-13'), senasa:'PA' },
-  { id:'FCL-9', po:'PO00000052419', instruction:'RH-0685', planta:'Chao', pol:'Paita', tipo:'ruta_puerto', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:1900, fcl:1, netWeight:14673.312, fecha:D('2026-09-10'), senasa:'SENASA', trTime:'15:30', trAssigned:'Josman Hernan Galvez Garcia' },
-
-  { id:'FCL-10', po:'PO00000052353, PO00000052352', instruction:'RH-0687, RH-0470', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Air France', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Tel Aviv', flete:2690, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:true, senasa:'PA' },
-  { id:'FCL-11', po:'PO00000052237, PO00000052238', instruction:'RH-0645', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'United', shipper:'Hortifrut Perú', carrier:'RVC', broker:'DHL', logistico:'DHL', pod:'Londres', flete:2630, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:false, senasa:'PA' },
-  { id:'FCL-12', po:'PO00000052239, PO00000052378, PO00000052445, PO00000052446', instruction:'RH-0648', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'United', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Smart Global', logistico:'Smart Global', pod:'Londres', flete:2200, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:false, senasa:'PA' },
-  { id:'FCL-13', po:'PO00000052384, PO00000052467, PO00000052376', instruction:'RH-0644', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'KLM', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Amsterdam', flete:2580, fcl:1, netWeight:12150, fecha:D('2026-09-08'), cargado:false, senasa:'PA' },
-
-  { id:'FCL-14', po:'PO00000051972', instruction:'RH-0514', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2120, fcl:1, netWeight:12150, fecha:D('2026-09-08'), senasa:'PA' },
-  { id:'FCL-15', po:'PO00000051788', instruction:'RH-0465', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:1900, fcl:1, netWeight:12150, fecha:D('2026-09-09'), senasa:'SENASA' },
-  { id:'FCL-16', po:'PO00000051712', instruction:'RH-0358', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2390, fcl:1, netWeight:15288, fecha:D('2026-09-15'), senasa:'SENASA' },
-  { id:'FCL-17', po:'PO00000051694', instruction:'RH-0357', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2440, fcl:1, netWeight:12150, fecha:D('2026-09-16'), senasa:'SENASA' },
+  { id:'FCL-1', po:'PO00000052691', instruction:'RH-0802', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Maersk Line', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Algeciras', flete:1900, fcl:1, netWeight:21312, fecha:D('2026-09-19'), senasa:'PA', cutoff:D('2026-09-18T07:00:00') },
+  { id:'FCL-2', po:'PO00000052716', instruction:'RH-0804', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:1980, fcl:1, netWeight:11985, fecha:D('2026-09-20'), senasa:'PA', cutoff:D('2026-09-19T07:00:00') },
+  { id:'FCL-3', po:'PO00000052717', instruction:'RH-0810', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'CMA CGM', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Rotterdam', flete:2200, fcl:1, netWeight:21312, fecha:D('2026-09-22'), senasa:'PA', cutoff:D('2026-09-21T07:00:00') },
+  { id:'FCL-4', po:'PO00000052423', instruction:'RH-0774', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2330, fcl:1, netWeight:12362.4, fecha:D('2026-09-21'), senasa:'SENASA', trTime:'13:30', trAssigned:'LUIS ALFREDO CARRASCAL CAJUSOL', cutoff:D('2026-09-16T11:00:00') },
+  { id:'FCL-5', po:'S/PO (por asignar)', instruction:'RH-0832', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2270, fcl:1, netWeight:0, fecha:D('2026-09-28'), senasa:'SENASA', trTime:'11:30' },
+  { id:'FCL-6', po:'PO00000052578', instruction:'RH-0772', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2260, fcl:1, netWeight:16128, fecha:D('2026-09-24'), senasa:'PA', trTime:'15:30', trAssigned:'Luis Figueroa Reyes', cutoff:D('2026-09-15T11:00:00') },
+  { id:'FCL-7', po:'S/PO (por asignar)', instruction:'RH-0787', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Por asignar', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2480, fcl:1, netWeight:0, fecha:D('2026-09-24') },
+  { id:'FCL-8', po:'S/PO (por asignar)', instruction:'RH-0801', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Cosco', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Shanghai', flete:1970, fcl:1, netWeight:0, fecha:D('2026-09-25'), senasa:'PA', trTime:'13:30' },
+  { id:'FCL-9', po:'S/PO (por asignar)', instruction:'RH-0831', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Cosco', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2460, fcl:1, netWeight:0, fecha:D('2026-09-25'), senasa:'PA', trTime:'13:30' },
+  { id:'FCL-10', po:'PO00000052708, PO00000052710', instruction:'RH-0837', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Iberia', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Bombay', flete:2160, fcl:1, netWeight:12150, fecha:D('2026-09-19'), cargado:false, senasa:'SENASA', cutoff:D('2026-09-18T00:00:00') },
+  { id:'FCL-11', po:'S/PO (por asignar)', instruction:'RH-0838', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Delta', shipper:'Hortifrut Perú', carrier:'Por asignar', broker:'DSV', logistico:'DSV', pod:'Londres', flete:2520, fcl:1, netWeight:12150, fecha:D('2026-09-21'), cargado:false, senasa:'SENASA', cutoff:D('2026-09-20T00:00:00') },
+  { id:'FCL-12', po:'PO00000052389', instruction:'RH-0650', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:1910, fcl:1, netWeight:12150, fecha:D('2026-09-19'), senasa:'PA' },
+  { id:'FCL-13', po:'PO00000051972', instruction:'RH-0514', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2120, fcl:1, netWeight:12150, fecha:D('2026-09-21'), senasa:'PA' },
+  { id:'FCL-14', po:'PO00000051788', instruction:'RH-0465', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:1900, fcl:1, netWeight:12150, fecha:D('2026-09-25'), senasa:'SENASA' },
+  { id:'FCL-15', po:'PO00000051712', instruction:'RH-0358', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2390, fcl:1, netWeight:15288, fecha:D('2026-09-27'), senasa:'SENASA' },
 ];
 // Para el flujo 'retiro', la cita de retiro se asume el mismo día declarado en 'fecha'.
 // Líneas sin PO asignado en Horizon (campo vacío) se marcan "S/PO (por asignar)" en vez de inventar un código.
@@ -832,9 +838,9 @@ const state = {
   costoTransporteReprog: 350, // reprogramación de transporte, por FCL reprogramado/cancelado (cualquier destino)
   costoRoleo: 650, // sobrecosto por FCL crítico con posible roleo a la próxima semana
   kgPerFcl: 14000, // solo se usa para contenedores en riesgo declarados manualmente (no son PO reales con Net weight)
-  dateStart: new Date('2026-09-06'),
-  dateEnd: new Date('2026-09-17'),
-  simDate: new Date('2026-09-07'),
+  dateStart: new Date('2026-09-18'),
+  dateEnd: new Date('2026-09-28'),
+  simDate: new Date('2026-09-18'),
   modeFilter: 'Todos', // 'Todos' | 'Marítimo' | 'Terrestre' | 'Aéreo'
 };
 
@@ -1840,9 +1846,14 @@ function plazoCarga(s){
   const horasCorredor = CORREDOR_HORAS[s.planta] && CORREDOR_HORAS[s.planta][r.pol];
   if(horasCorredor == null) return { r, sinRuta:true };
   const horasTotal = horasCorredor + (r.delay || 0);
-  const limite = new Date(s.fecha.getTime() - horasTotal*3600*1000);
+  // Si Horizon trae un Cut-Off real para esta línea (columna "Cut-Off", solo Marítimo por ahora — ver
+  // comentario junto a SHIPMENTS), se calcula desde ahí en vez del ETD: es la hora real en que el puerto
+  // cierra el gate, más precisa que aproximar con el ETD. Sin Cut-Off real, cae al supuesto anterior
+  // (ETD − horas de corredor).
+  const base = s.cutoff || s.fecha;
+  const limite = new Date(base.getTime() - horasTotal*3600*1000);
   const margenHoras = (limite.getTime() - state.simDate.getTime()) / 3600000;
-  return { r, sinRuta:false, horasCorredor, horasTotal, limite, margenHoras };
+  return { r, sinRuta:false, horasCorredor, horasTotal, limite, margenHoras, usaCutoffReal: !!s.cutoff };
 }
 function renderPlazos(){
   const todas = SHIPMENTS.map(s => ({ s, p: plazoCarga(s) }));
@@ -1874,10 +1885,10 @@ function renderPlazos(){
     const { s, p } = x;
     const modoLinea = s.linea ? `${s.mode} · ${s.linea}` : s.mode;
     if(extra === 'sinruta'){
-      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="4" style="color:var(--text-ghost);">${p.sinRuta ? 'Sin ruta modelada planta→puerto' : p.r.status}</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">N/A</span></td></tr>`;
+      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="5" style="color:var(--text-ghost);">${p.sinRuta ? 'Sin ruta modelada planta→puerto' : p.r.status}</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">N/A</span></td></tr>`;
     }
     if(extra === 'finalizado'){
-      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="4" style="color:var(--text-ghost);">Ya finalizado</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">—</span></td></tr>`;
+      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="5" style="color:var(--text-ghost);">Ya finalizado</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">—</span></td></tr>`;
     }
     const estado = p.margenHoras < 0
       ? { txt:'VENCIDO', color:'var(--red)' }
@@ -1892,6 +1903,9 @@ function renderPlazos(){
       <td>${p.r.pol}${p.r.cambioPuerto ? ' <span class="mono" style="font-size:9px; color:var(--amber);">(reasignado)</span>' : ''} → ${s.pod}</td>
       <td class="mono">${p.horasCorredor}h${p.r.delay ? ` + ${p.r.delay}h desvío` : ''} = ${p.horasTotal}h</td>
       <td class="mono">${fmtDateTimePlazo(s.fecha)}</td>
+      <td class="mono">${s.cutoff
+        ? `${fmtDateTimePlazo(s.cutoff)}${s.mode === 'Aéreo' ? ' <span style="color:var(--text-ghost);">(regla: ETD−1d)</span>' : ''}`
+        : `${fmtDateTimePlazo(s.fecha)} <span style="color:var(--text-ghost);">(≈ETD, sin cut-off real)</span>`}</td>
       <td class="mono" style="color:${estado.color};">${fmtDateTimePlazo(p.limite)}</td>
       <td class="mono" style="color:${estado.color};">${margenTxt}</td>
       <td><span class="status-pill" style="background:${estado.color}22; color:${estado.color}; border:1px solid ${estado.color}55;">${estado.txt}</span></td>
@@ -2063,15 +2077,15 @@ function resetSim(){
   ['transporte'].forEach(cat => PROVIDERS[cat].forEach(p => state.providerIncrease[cat][p.id] = 0));
   state.containersAtRisk = 0;
   state.fclNoExport = 0;
-  state.dateStart = new Date('2026-09-06');
-  state.dateEnd = new Date('2026-09-17');
-  state.simDate = new Date('2026-09-07');
+  state.dateStart = new Date('2026-09-18');
+  state.dateEnd = new Date('2026-09-28');
+  state.simDate = new Date('2026-09-18');
   state.modeFilter = 'Todos';
   document.getElementById('inputContainersRisk').value = 0;
   document.getElementById('inputFclNoExport').value = 0;
-  document.getElementById('inputDateStart').value = '2026-09-06';
-  document.getElementById('inputDateEnd').value = '2026-09-17';
-  document.getElementById('inputSimDate').value = '2026-09-07';
+  document.getElementById('inputDateStart').value = '2026-09-18';
+  document.getElementById('inputDateEnd').value = '2026-09-28';
+  document.getElementById('inputSimDate').value = '2026-09-18';
   document.querySelectorAll('.mf-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'Todos'));
   renderAll();
 }
