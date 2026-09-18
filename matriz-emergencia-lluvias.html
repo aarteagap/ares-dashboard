@@ -280,6 +280,7 @@
     <div class="tab-btn active" data-tab="antes"><span class="num">1</span>Antes · Simulación</div>
     <div class="tab-btn" data-tab="durante"><span class="num">2</span>Durante · Replanificación</div>
     <div class="tab-btn" data-tab="despues"><span class="num">3</span>Después · Impacto &amp; KPIs</div>
+    <div class="tab-btn" data-tab="plazos" style="margin-left:6px;">Plazos de carga en Packing</div>
     <div class="tab-spacer"></div>
     <div class="mode-filter" id="modeFilter">
       <span class="mf-label">MODO</span>
@@ -495,6 +496,43 @@
       <div class="assump-row"><div class="assump-label">kg/FCL asumido<br /><small>para contenedores con observación de calidad y fruta no exportable (sin PO real)</small></div><div class="assump-input"><input type="number" id="inputKgFcl" value="14000" step="100" min="0" /><span>kg</span></div></div>
     </div>
 
+  </div>
+
+  <!-- ======================= VISTA · PLAZOS DE CARGA EN PACKING ======================= -->
+  <div class="view" id="view-plazos">
+    <div class="section-title">PLAZOS DE CARGA EN PACKING — CHAO · SALAVERRY · OLMOS</div>
+    <div class="card-sub" style="margin:-6px 0 16px;">Fecha/hora límite para tener la carga lista y el camión saliendo de packing, calculada hacia atrás desde el ETD de cada línea (horas de corredor + desvío actual por puentes/ruta alterna, según el estado de la pestaña “Antes”). No incluye margen de cutoff de puerto — es transporte puro, planta → puerto.</div>
+
+    <div class="kpi-grid" id="plazosResumen" style="margin-bottom:16px;"></div>
+
+    <div class="panel" style="padding:0; overflow:hidden;">
+      <div class="section-title" style="padding:16px 16px 0;">CRONOGRAMA DE CARGA, MÁS URGENTE PRIMERO</div>
+      <div style="overflow-x:auto;">
+        <table class="board">
+          <thead>
+            <tr>
+              <th>PLANTA</th>
+              <th>INSTRUCTION / PO</th>
+              <th>MODO · LÍNEA</th>
+              <th>POL → POD</th>
+              <th>HORAS CORREDOR (normal + desvío)</th>
+              <th>ETD</th>
+              <th>DEBE ESTAR CARGADO Y SALIR ANTES DE</th>
+              <th>MARGEN DESDE HOY</th>
+              <th>ESTADO</th>
+            </tr>
+          </thead>
+          <tbody id="plazosBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="assumption-note" style="margin-top:16px;">
+      <span>⚠</span>
+      <div>
+        <b>Cómo se calcula:</b> hora límite de carga = ETD − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales de esa línea, si hay puente caído con ruta alterna activa). El ETD de cada línea no trae hora (solo día, campo real de Horizon), así que se asume medianoche del día de ETD. No se resta margen de cutoff de puerto (documentación pendiente por línea naviera) — es solo el tránsito Packing → Puerto. Líneas ya <b>FINALIZADAS</b> o <b>CANCELADAS/SIN RUTA</b> no tienen un plazo de carga útil y se muestran aparte.
+      </div>
+    </div>
   </div>
 
   <div class="footer-note">
@@ -1795,6 +1833,91 @@ function renderAlerts(calc){
   el.innerHTML = alerts.length ? alerts.join('') : `<div class="alert-bar alert-amber" style="background:var(--panel-2); border-color:var(--border); color:var(--text-dim);"><span class="icon">·</span><div>Sin alertas activas para el filtro y ventana actuales.</div></div>`;
 }
 
+/* ======================================================================
+   # PLAZOS DE CARGA EN PACKING — vista 4, sin número (no forma parte del
+   flujo Antes/Durante/Después, es una lectura derivada de "Antes").
+   Hora límite de carga = ETD − (horas de corredor + desvío actual de esa
+   línea). Usa SIEMPRE el universo completo de SHIPMENTS (no el modeFilter
+   de "Durante"), porque es una vista operativa propia con su período
+   Marítimo/Aéreo/Terrestre visible a la vez.
+   ====================================================================== */
+function plazoCarga(s){
+  const r = getShipmentResult(s);
+  const horasCorredor = CORREDOR_HORAS[s.planta] && CORREDOR_HORAS[s.planta][r.pol];
+  if(horasCorredor == null) return { r, sinRuta:true };
+  const horasTotal = horasCorredor + (r.delay || 0);
+  const limite = new Date(s.fecha.getTime() - horasTotal*3600*1000);
+  const margenHoras = (limite.getTime() - state.simDate.getTime()) / 3600000;
+  return { r, sinRuta:false, horasCorredor, horasTotal, limite, margenHoras };
+}
+function renderPlazos(){
+  const todas = SHIPMENTS.map(s => ({ s, p: plazoCarga(s) }));
+  const finalizadas = todas.filter(x => x.s.tipo === 'finalizado');
+  const sinRutaOCancel = todas.filter(x => x.s.tipo !== 'finalizado' && (x.p.sinRuta || x.p.r.level === 'bad'));
+  const activas = todas.filter(x => x.s.tipo !== 'finalizado' && !x.p.sinRuta && x.p.r.level !== 'bad')
+    .sort((a,b) => a.p.limite - b.p.limite);
+
+  const vencidas = activas.filter(x => x.p.margenHoras < 0).length;
+  const urgentes = activas.filter(x => x.p.margenHoras >= 0 && x.p.margenHoras <= 24).length;
+  const aTiempo = activas.length - vencidas - urgentes;
+
+  const plantas = [...new Set(SHIPMENTS.map(s => s.planta))];
+  const porPlanta = plantas.map(pl => {
+    const lineas = activas.filter(x => x.s.planta === pl);
+    const proxima = lineas[0];
+    return { pl, n: lineas.length, proxima };
+  });
+
+  document.getElementById('plazosResumen').innerHTML = `
+    <div class="kpi-cell"><div class="kpi-k">LÍNEAS VENCIDAS</div><div class="kpi-v red">${vencidas}</div><div class="kpi-sub">plazo de carga ya pasado, riesgo de roleo</div></div>
+    <div class="kpi-cell"><div class="kpi-k">LÍNEAS URGENTES (≤24H)</div><div class="kpi-v amber">${urgentes}</div><div class="kpi-sub">deben cargar en las próximas 24h</div></div>
+    <div class="kpi-cell"><div class="kpi-k">LÍNEAS A TIEMPO</div><div class="kpi-v green">${aTiempo}</div><div class="kpi-sub">de ${activas.length} con ruta activa (no finalizadas/canceladas)</div></div>
+    <div class="kpi-cell"><div class="kpi-k">PRÓXIMO CORTE POR PLANTA</div><div class="kpi-sub" style="display:flex; flex-direction:column; gap:3px; margin-top:2px;">
+      ${porPlanta.map(x => `<span><b style="color:var(--text-mid);">${x.pl}:</b> ${x.proxima ? fmtDateTimePlazo(x.proxima.p.limite) : 'sin líneas activas'}</span>`).join('')}
+    </div></div>`;
+
+  const fila = (x, extra) => {
+    const { s, p } = x;
+    const modoLinea = s.linea ? `${s.mode} · ${s.linea}` : s.mode;
+    if(extra === 'sinruta'){
+      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="4" style="color:var(--text-ghost);">${p.sinRuta ? 'Sin ruta modelada planta→puerto' : p.r.status}</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">N/A</span></td></tr>`;
+    }
+    if(extra === 'finalizado'){
+      return `<tr class="standby"><td class="plant">${s.planta}</td><td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td><td>${modoLinea}</td><td>${s.pol} → ${s.pod}</td><td colspan="4" style="color:var(--text-ghost);">Ya finalizado</td><td><span class="status-pill" style="background:var(--panel-3); color:var(--text-ghost);">—</span></td></tr>`;
+    }
+    const estado = p.margenHoras < 0
+      ? { txt:'VENCIDO', color:'var(--red)' }
+      : (p.margenHoras <= 24 ? { txt:'URGENTE', color:'var(--amber)' } : { txt:'A TIEMPO', color:'var(--green)' });
+    const margenTxt = p.margenHoras < 0
+      ? `hace ${fmtHoras(-p.margenHoras)}`
+      : `en ${fmtHoras(p.margenHoras)}`;
+    return `<tr>
+      <td class="plant">${s.planta}</td>
+      <td>${s.instruction}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint);">${s.po}</span></td>
+      <td>${modoLinea}</td>
+      <td>${p.r.pol}${p.r.cambioPuerto ? ' <span class="mono" style="font-size:9px; color:var(--amber);">(reasignado)</span>' : ''} → ${s.pod}</td>
+      <td class="mono">${p.horasCorredor}h${p.r.delay ? ` + ${p.r.delay}h desvío` : ''} = ${p.horasTotal}h</td>
+      <td class="mono">${fmtDateTimePlazo(s.fecha)}</td>
+      <td class="mono" style="color:${estado.color};">${fmtDateTimePlazo(p.limite)}</td>
+      <td class="mono" style="color:${estado.color};">${margenTxt}</td>
+      <td><span class="status-pill" style="background:${estado.color}22; color:${estado.color}; border:1px solid ${estado.color}55;">${estado.txt}</span></td>
+    </tr>`;
+  };
+
+  document.getElementById('plazosBody').innerHTML =
+    activas.map(x => fila(x)).join('') +
+    sinRutaOCancel.map(x => fila(x, 'sinruta')).join('') +
+    finalizadas.map(x => fila(x, 'finalizado')).join('');
+}
+function fmtDateTimePlazo(d){
+  return d.toLocaleString('es-PE', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function fmtHoras(h){
+  const dias = Math.floor(h/24), horas = Math.round(h%24);
+  if(dias > 0) return `${dias}d ${horas}h`;
+  return `${Math.round(h)}h`;
+}
+
 function renderAll(){
   const calc = computeAll();
   renderBridgePanel();
@@ -1808,6 +1931,7 @@ function renderAll(){
   renderKpis(calc);
   renderAlerts(calc);
   renderRules();
+  renderPlazos();
 }
 
 /* ======================================================================
