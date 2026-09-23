@@ -2683,7 +2683,7 @@ function incRefreshGeneralBody(){
     <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start;margin-bottom:14px;">
-    <div class="card" style="margin-bottom:0;">
+    <div class="card" style="margin-bottom:0;min-width:0;">
       <div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl} · cumplimiento vs. incumplimiento</span></div>
       <div class="sc-chart" style="height:280px;">${ppStack.length ? ppStack.map(p=>{
         const h = Math.max(2, calcPct(p.tot, maxPPTot));
