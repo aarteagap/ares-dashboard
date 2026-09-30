@@ -1534,7 +1534,6 @@ function refreshPorts(){
 
 window.postRender_ports = refreshPorts;
 
-function wepChecked_select(id){ const el = document.getElementById(id); return el ? el.value : 'ALL'; }
 function wepPickCurrentWeek(rows){
   // Elige la semana cuyo rango de fechas de carga contiene HOY (o la más
   // cercana en el tiempo). Evita el bug de tomar el pack_plan numéricamente
@@ -1589,10 +1588,10 @@ function renderWEP(){
   <div class="wep-filterbar">
     <span class="wep-filter-lbl">VISTA</span>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><select id="wep-pp-select" onchange="wepOnPlanChange()">${weeks.map(w=>`<option value="${w}" ${w===curWeek?'selected':''}>S${w}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Destino</span><select id="wep-pod-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${pods.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('')}</select></div>
+    ${msdField('wep-msd-packing', 'All Packing', packings, 'refreshWEP')}
+    ${msdField('wep-msd-shipper', 'All Shippers', shippers, 'refreshWEP')}
+    ${msdField('wep-msd-modo', 'All Modes', modes, 'refreshWEP', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+    ${msdField('wep-msd-pod', 'All Destinos', pods, 'refreshWEP')}
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2" style="grid-template-columns:1.8fr 1fr;">
@@ -1615,10 +1614,10 @@ function wepOnPlanChange(){
   const modes = [...new Set(weekRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const pods = [...new Set(weekRows.map(r=>r.pod).filter(Boolean))].sort();
 
-  document.getElementById('wep-pk-select').innerHTML = '<option value="ALL" selected>Todos</option>' + packings.map(p=>`<option value="${p}">${p}</option>`).join('');
-  document.getElementById('wep-sh-select').innerHTML = '<option value="ALL" selected>Todos</option>' + shippers.map(s=>`<option value="${s}">${s}</option>`).join('');
-  document.getElementById('wep-mo-select').innerHTML = '<option value="ALL" selected>Todos</option>' + modes.map(m=>`<option value="${m}">${m}</option>`).join('');
-  document.getElementById('wep-pod-select').innerHTML = '<option value="ALL" selected>Todos</option>' + pods.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('');
+  msdRebuild('wep-msd-packing', packings);
+  msdRebuild('wep-msd-shipper', shippers);
+  msdRebuild('wep-msd-modo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m);
+  msdRebuild('wep-msd-pod', pods);
   refreshWEP();
 }
 
@@ -1636,14 +1635,14 @@ function refreshWEP(){
   const curWeek = ppSelect ? Number(ppSelect.value) : wepPickCurrentWeek(all);
   let rows = all.filter(r=>r.pack_plan===curWeek);
 
-  const selPK = wepChecked_select('wep-pk-select');
-  const selSH = wepChecked_select('wep-sh-select');
-  const selMO = wepChecked_select('wep-mo-select');
-  const selPOD = wepChecked_select('wep-pod-select');
-  if (selPK!=='ALL') rows = rows.filter(r=>r.packing===selPK);
-  if (selSH!=='ALL') rows = rows.filter(r=>r.shipper===selSH);
-  if (selMO!=='ALL') rows = rows.filter(r=>r.mode===selMO);
-  if (selPOD!=='ALL') rows = rows.filter(r=>r.pod===selPOD);
+  const selPK = msdFilterValues('wep-msd-packing');
+  const selSH = msdFilterValues('wep-msd-shipper');
+  const selMO = msdFilterValues('wep-msd-modo');
+  const selPOD = msdFilterValues('wep-msd-pod');
+  if (selPK) rows = rows.filter(r=>selPK.includes(r.packing));
+  if (selSH) rows = rows.filter(r=>selSH.includes(r.shipper));
+  if (selMO) rows = rows.filter(r=>selMO.includes(r.mode));
+  if (selPOD) rows = rows.filter(r=>selPOD.includes(r.pod));
 
   const unit = wepMetric==='fcl' ? 'FCL' : 'Pallets';
   const fmtM = v => wepMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
