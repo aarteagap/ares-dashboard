@@ -889,11 +889,11 @@ const SAMPLE_FALLBACK = {
     {status:'Cancelado', pack_plan:29, port:'Paita', mode:'Terrestre', fcl:12.0, po:''},
   ],
   WROWS: [
-    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Philadelphia', date:'2026-08-02', fcl:13.0},
-    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Shanghai', date:'2026-07-31', fcl:6.0},
-    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Port Hueneme', date:'2026-08-03', fcl:5.0},
-    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Dover', date:'2026-08-04', fcl:4.0},
-    {pack_plan:31, packing:'OLMOS', mode:'Aéreo', shipper:'Agroindustrial Chao', pod:'Miami', date:'2026-08-04', fcl:1.0},
+    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Philadelphia', pol:'Callao', date:'2026-08-02', fcl:13.0},
+    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Shanghai', pol:'Callao', date:'2026-07-31', fcl:6.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Port Hueneme', pol:'Paita', date:'2026-08-03', fcl:5.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Dover', pol:'Paita', date:'2026-08-04', fcl:4.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Aéreo', shipper:'Agroindustrial Chao', pod:'Miami', pol:'Lima', date:'2026-08-04', fcl:1.0},
   ],
   EX: { dam_by_mode:[ {mode:'Marítimo', dam_with:412, dam_without:8, pct:98.1}, {mode:'Aéreo', dam_with:64, dam_without:2, pct:96.9}, {mode:'Terrestre', dam_with:39, dam_without:5, pct:87.2} ] },
   DEST: [ {port:'Philadelphia', fcl:13.0}, {port:'Shanghai', fcl:6.0}, {port:'Port Hueneme', fcl:5.0}, {port:'Dover', fcl:4.0} ],
@@ -1568,6 +1568,7 @@ function renderWEP(){
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(baseRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const pods = [...new Set(baseRows.map(r=>r.pod).filter(Boolean))].sort();
+  const pols = [...new Set(baseRows.map(r=>r.pol).filter(Boolean))].sort();
 
   return `
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;background:var(--surface);margin:-22px -26px 18px;padding:20px 26px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;">
@@ -1588,6 +1589,7 @@ function renderWEP(){
   <div class="wep-filterbar">
     <span class="wep-filter-lbl">VISTA</span>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><select id="wep-pp-select" onchange="wepOnPlanChange()">${weeks.map(w=>`<option value="${w}" ${w===curWeek?'selected':''}>S${w}</option>`).join('')}</select></div>
+    ${msdField('wep-msd-pol', 'All Puertos (POL)', pols, 'refreshWEP')}
     ${msdField('wep-msd-packing', 'All Packing', packings, 'refreshWEP')}
     ${msdField('wep-msd-shipper', 'All Shippers', shippers, 'refreshWEP')}
     ${msdField('wep-msd-modo', 'All Modes', modes, 'refreshWEP', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
@@ -1613,7 +1615,9 @@ function wepOnPlanChange(){
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(weekRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const pods = [...new Set(weekRows.map(r=>r.pod).filter(Boolean))].sort();
+  const pols = [...new Set(weekRows.map(r=>r.pol).filter(Boolean))].sort();
 
+  msdRebuild('wep-msd-pol', pols);
   msdRebuild('wep-msd-packing', packings);
   msdRebuild('wep-msd-shipper', shippers);
   msdRebuild('wep-msd-modo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m);
@@ -1635,10 +1639,12 @@ function refreshWEP(){
   const curWeek = ppSelect ? Number(ppSelect.value) : wepPickCurrentWeek(all);
   let rows = all.filter(r=>r.pack_plan===curWeek);
 
+  const selPOL = msdFilterValues('wep-msd-pol');
   const selPK = msdFilterValues('wep-msd-packing');
   const selSH = msdFilterValues('wep-msd-shipper');
   const selMO = msdFilterValues('wep-msd-modo');
   const selPOD = msdFilterValues('wep-msd-pod');
+  if (selPOL) rows = rows.filter(r=>selPOL.includes(r.pol));
   if (selPK) rows = rows.filter(r=>selPK.includes(r.packing));
   if (selSH) rows = rows.filter(r=>selSH.includes(r.shipper));
   if (selMO) rows = rows.filter(r=>selMO.includes(r.mode));
