@@ -576,6 +576,7 @@ function animateBarsIn(root){
 }
 
 function goTo(id){
+  if (!VISIBLE_TABS().some(t=>t.id===id)) id = VISIBLE_TABS()[0].id;
   currentView = id;
   document.querySelectorAll('.sb-item').forEach(el=>el.classList.toggle('active', el.dataset.view===id));
   document.querySelectorAll('.panel').forEach(el=>el.classList.toggle('active', el.id==='p-'+id));
@@ -770,6 +771,12 @@ const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
 
 const SUPPLIER_TABS = ['wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
+// Por-cuenta (columnas opcionales en profiles): si allowed_tabs viene seteado,
+// manda sobre SUPPLIER_TABS — permite cuentas de proveedor con acceso a una
+// sola vista (ej. solo Air Program) en vez del set fijo de 4 vistas.
+// air_recent_only fuerza Air Program a mostrar solo Hoy/Ayer sin filtros.
+let USER_ALLOWED_TABS = null;
+let USER_AIR_RECENT_ONLY = false;
 let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE,HORIZON_RANGE;
 
 async function tryLogin(){
@@ -786,8 +793,10 @@ async function tryLogin(){
     err.textContent = 'Credenciales inválidas o error de conexión.';
     return;
   }
-  const { data: profile } = await sb.from('profiles').select('role,full_name').eq('id', data.user.id).single();
+  const { data: profile } = await sb.from('profiles').select('role,full_name,allowed_tabs,air_recent_only').eq('id', data.user.id).single();
   USER_ROLE = profile ? profile.role : 'hortifrut';
+  USER_ALLOWED_TABS = (profile && Array.isArray(profile.allowed_tabs) && profile.allowed_tabs.length) ? profile.allowed_tabs : null;
+  USER_AIR_RECENT_ONLY = !!(profile && profile.air_recent_only);
   document.getElementById('sbRoleName').textContent = profile?.full_name || email;
   document.getElementById('sbRoleTag').textContent = 'rol: ' + USER_ROLE;
   document.getElementById('gateOverlay').style.display = 'none';
@@ -797,6 +806,7 @@ async function tryLogin(){
 
 function VISIBLE_TABS(){
   const all = NAV.flatMap(g=>g.items);
+  if (USER_ALLOWED_TABS) return all.filter(t=>USER_ALLOWED_TABS.includes(t.id));
   return USER_ROLE==='supplier' ? all.filter(t=>SUPPLIER_TABS.includes(t.id)) : all;
 }
 function applyRoleVisibility(){
@@ -958,6 +968,12 @@ function cmpDDMMYYYY(a, b){
 // Hoy, en el mismo formato "DD/MM/YYYY" que usan dispatch_date/dispatch.
 function todayDDMMYYYY(){
   const t = new Date();
+  return String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
+}
+// Ayer, mismo formato — usado por cuentas con air_recent_only (solo Hoy/Ayer).
+function yesterdayDDMMYYYY(){
+  const t = new Date();
+  t.setDate(t.getDate()-1);
   return String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
 }
 
@@ -2181,9 +2197,11 @@ function renderAir(){
       <span class="pill neu">Mode: Aéreo</span>
     </div>
     <div class="msd-filterbar">
+      ${USER_AIR_RECENT_ONLY ? `<span class="pill ok" style="font-family:'JetBrains Mono',monospace;">📅 Fecha (fijo): Hoy y Ayer</span>` : `
       ${msdField('msd-air-pp', 'All Pack Plans', weeks, 'refreshAir', w=>'S'+w)}
       ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
       <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="airSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
+      `}
       ${msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
     </div>
   </div>
@@ -2209,14 +2227,21 @@ function airSelectToday(){
 function refreshAir(){
   const rows = AIR || [];
   if (!document.getElementById('air-kg')) return;
-  const selPPraw = msdFilterValues('msd-air-pp');
-  const selPP = selPPraw ? selPPraw.map(Number) : [];
-  const selDD = msdFilterValues('msd-air-dd') || [];
   const selLOraw = msdFilterValues('msd-air-lo');
 
   let ft = rows;
-  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
-  if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch));
+  if (USER_AIR_RECENT_ONLY){
+    // Cuenta con fecha fija: ignora cualquier filtro de Pack Plan/Dispatch Date
+    // (ni siquiera se renderizan esos controles) y limita siempre a Hoy/Ayer.
+    const recentDates = [todayDDMMYYYY(), yesterdayDDMMYYYY()];
+    ft = ft.filter(r=>recentDates.includes(r.dispatch));
+  } else {
+    const selPPraw = msdFilterValues('msd-air-pp');
+    const selPP = selPPraw ? selPPraw.map(Number) : [];
+    const selDD = msdFilterValues('msd-air-dd') || [];
+    if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
+    if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch));
+  }
   if (selLOraw) ft = ft.filter(r=>selLOraw.includes(r.log_op));
 
   document.getElementById('air-stat').textContent = `${ft.length} de ${rows.length} registros`;
