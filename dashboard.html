@@ -965,17 +965,15 @@ function cmpDDMMYYYY(a, b){
   const [db,mb,yb] = String(b).split('/').map(Number);
   return (ya-yb) || (ma-mb) || (da-db);
 }
-// Hoy, en el mismo formato "DD/MM/YYYY" que usan dispatch_date/dispatch.
-function todayDDMMYYYY(){
+// Fecha de hoy +/- n días, en el mismo formato "DD/MM/YYYY" que usan
+// dispatch_date/dispatch. n=0 hoy, n=-1 ayer, n=1 mañana, etc.
+function offsetDateDDMMYYYY(n){
   const t = new Date();
+  t.setDate(t.getDate()+n);
   return String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
 }
-// Ayer, mismo formato — usado por cuentas con air_recent_only (solo Hoy/Ayer).
-function yesterdayDDMMYYYY(){
-  const t = new Date();
-  t.setDate(t.getDate()-1);
-  return String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
-}
+function todayDDMMYYYY(){ return offsetDateDDMMYYYY(0); }
+function yesterdayDDMMYYYY(){ return offsetDateDDMMYYYY(-1); }
 
 /* ============================================================
    # 09 RENDER — EXPORT: Forecast / Ports / Weekly / WEP / PMI / Air / Execute
@@ -2197,7 +2195,12 @@ function renderAir(){
       <span class="pill neu">Mode: Aéreo</span>
     </div>
     <div class="msd-filterbar">
-      ${USER_AIR_RECENT_ONLY ? `<span class="pill ok" style="font-family:'JetBrains Mono',monospace;">📅 Fecha (fijo): Hoy y Ayer</span>` : `
+      ${USER_AIR_RECENT_ONLY ? `
+      <span class="wep-filter-lbl" style="align-self:center;">Fecha (fijo)</span>
+      <button type="button" class="fc-metric-btn air-recent-btn active" data-day="-1" onclick="airToggleRecentDay(this)">Ayer</button>
+      <button type="button" class="fc-metric-btn air-recent-btn active" data-day="0" onclick="airToggleRecentDay(this)">Hoy</button>
+      <button type="button" class="fc-metric-btn air-recent-btn active" data-day="1" onclick="airToggleRecentDay(this)">Mañana</button>
+      ` : `
       ${msdField('msd-air-pp', 'All Pack Plans', weeks, 'refreshAir', w=>'S'+w)}
       ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
       <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="airSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
@@ -2224,6 +2227,13 @@ function airSelectToday(){
   if (!found) alert('No hay despachos aéreos registrados para la fecha de hoy (' + todayDDMMYYYY() + ').');
   refreshAir();
 }
+// Cuentas con air_recent_only: Ayer/Hoy/Mañana se activan o desactivan por
+// separado, pero el universo de días sigue fijo a esos 3 — no hay forma de
+// llegar a un Pack Plan o Dispatch Date fuera de esa ventana.
+function airToggleRecentDay(btn){
+  btn.classList.toggle('active');
+  refreshAir();
+}
 function refreshAir(){
   const rows = AIR || [];
   if (!document.getElementById('air-kg')) return;
@@ -2232,8 +2242,9 @@ function refreshAir(){
   let ft = rows;
   if (USER_AIR_RECENT_ONLY){
     // Cuenta con fecha fija: ignora cualquier filtro de Pack Plan/Dispatch Date
-    // (ni siquiera se renderizan esos controles) y limita siempre a Hoy/Ayer.
-    const recentDates = [todayDDMMYYYY(), yesterdayDDMMYYYY()];
+    // (ni siquiera se renderizan esos controles) y limita siempre a la
+    // ventana Ayer/Hoy/Mañana, según qué chips estén activos.
+    const recentDates = [...document.querySelectorAll('.air-recent-btn.active')].map(b=>offsetDateDDMMYYYY(Number(b.dataset.day)));
     ft = ft.filter(r=>recentDates.includes(r.dispatch));
   } else {
     const selPPraw = msdFilterValues('msd-air-pp');
