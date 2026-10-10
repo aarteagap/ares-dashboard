@@ -2183,6 +2183,7 @@ function renderAir(){
     <div class="msd-filterbar">
       ${msdField('msd-air-pp', 'All Pack Plans', weeks, 'refreshAir', w=>'S'+w)}
       ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
+      <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="airSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
       ${msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
     </div>
   </div>
@@ -2200,6 +2201,11 @@ function renderAir(){
   </div>`;
 }
 
+function airSelectToday(){
+  const found = msdSelectOnly('msd-air-dd', todayDDMMYYYY());
+  if (!found) alert('No hay despachos aéreos registrados para la fecha de hoy (' + todayDDMMYYYY() + ').');
+  refreshAir();
+}
 function refreshAir(){
   const rows = AIR || [];
   if (!document.getElementById('air-kg')) return;
