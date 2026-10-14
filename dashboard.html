@@ -1042,6 +1042,7 @@ function renderForecast(){
   const pods = [...new Set(rows.map(r=>r.pod).filter(Boolean))].sort();
   const lines = [...new Set(rows.map(r=>r.line).filter(Boolean))].sort();
   const transportOps = [...new Set(rows.map(r=>r.transport_operator).filter(Boolean))].sort();
+  const logOps = [...new Set(rows.map(r=>r.log_op).filter(Boolean))].sort();
   const markets = [...new Set(rows.map(r=>r.market).filter(Boolean))].sort();
   return `
   <div id="fcTooltip" class="fc-tooltip"></div>
@@ -1066,6 +1067,7 @@ function renderForecast(){
           ${msdField('msd-fc-pod', 'All Destinos', pods, 'refreshForecast')}
           ${msdField('msd-fc-line', 'All Lines', lines, 'refreshForecast')}
           ${msdField('msd-fc-top', 'All Transport Operators', transportOps, 'refreshForecast')}
+          ${msdField('msd-fc-logop', 'All Logistics Operators', logOps, 'refreshForecast')}
           ${msdField('msd-fc-market', 'All Markets', markets, 'refreshForecast')}
         </div>
       </div>
@@ -1114,6 +1116,7 @@ function refreshForecast(){
   const selPods = msdFilterValues('msd-fc-pod') || [];
   const selLines = msdFilterValues('msd-fc-line') || [];
   const selTops = msdFilterValues('msd-fc-top') || [];
+  const selLogOps = msdFilterValues('msd-fc-logop') || [];
   const selMarkets = msdFilterValues('msd-fc-market') || [];
   const selWeeks = fcChecked('fc-cb-week').map(Number);
 
@@ -1123,6 +1126,7 @@ function refreshForecast(){
   if(selPods.length) ft = ft.filter(r=>selPods.includes(r.pod));
   if(selLines.length) ft = ft.filter(r=>selLines.includes(r.line));
   if(selTops.length) ft = ft.filter(r=>selTops.includes(r.transport_operator));
+  if(selLogOps.length) ft = ft.filter(r=>selLogOps.includes(r.log_op));
   if(selMarkets.length) ft = ft.filter(r=>selMarkets.includes(r.market));
   const ftBeforeWeekFilter = ft; // para "Proyección 6W": siempre las últimas 6 semanas reales, sin importar qué esté tildado en el checklist de Pack Plan
   if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
@@ -1140,6 +1144,7 @@ function refreshForecast(){
     if (exclude!=='pod' && selPods.length) r = r.filter(x=>selPods.includes(x.pod));
     if (exclude!=='line' && selLines.length) r = r.filter(x=>selLines.includes(x.line));
     if (exclude!=='top' && selTops.length) r = r.filter(x=>selTops.includes(x.transport_operator));
+    if (exclude!=='logop' && selLogOps.length) r = r.filter(x=>selLogOps.includes(x.log_op));
     if (exclude!=='market' && selMarkets.length) r = r.filter(x=>selMarkets.includes(x.market));
     return r;
   };
@@ -1148,6 +1153,7 @@ function refreshForecast(){
   msdRebuild('msd-fc-pod', [...new Set(fcCascadeExcl('pod').map(r=>r.pod).filter(Boolean))].sort());
   msdRebuild('msd-fc-line', [...new Set(fcCascadeExcl('line').map(r=>r.line).filter(Boolean))].sort());
   msdRebuild('msd-fc-top', [...new Set(fcCascadeExcl('top').map(r=>r.transport_operator).filter(Boolean))].sort());
+  msdRebuild('msd-fc-logop', [...new Set(fcCascadeExcl('logop').map(r=>r.log_op).filter(Boolean))].sort());
   msdRebuild('msd-fc-market', [...new Set(fcCascadeExcl('market').map(r=>r.market).filter(Boolean))].sort());
 
   const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
