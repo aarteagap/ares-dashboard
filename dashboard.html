@@ -775,8 +775,15 @@ let USER_ROLE = null;
 // manda sobre SUPPLIER_TABS — permite cuentas de proveedor con acceso a una
 // sola vista (ej. solo Air Program) en vez del set fijo de 4 vistas.
 // air_recent_only fuerza Air Program a mostrar solo Hoy/Ayer sin filtros.
+// air_logop_keys (jsonb {"clave":"Nombre Logistics Operator"}) habilita un
+// candado por clave al entrar a Air Program: una cuenta compartida por
+// varios Logistics Operators, donde cada uno solo conoce su propia clave y
+// el dashboard la traduce al filtro de log_op correspondiente — sin exponer
+// el resto de claves ni permitir cambiarlo una vez ingresada.
 let USER_ALLOWED_TABS = null;
 let USER_AIR_RECENT_ONLY = false;
+let AIR_LOGOP_KEYS = null;
+let AIR_ACTIVE_LOGOP = null;
 let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE,HORIZON_RANGE;
 
 async function tryLogin(){
@@ -793,10 +800,12 @@ async function tryLogin(){
     err.textContent = 'Credenciales inválidas o error de conexión.';
     return;
   }
-  const { data: profile } = await sb.from('profiles').select('role,full_name,allowed_tabs,air_recent_only').eq('id', data.user.id).single();
+  const { data: profile } = await sb.from('profiles').select('role,full_name,allowed_tabs,air_recent_only,air_logop_keys').eq('id', data.user.id).single();
   USER_ROLE = profile ? profile.role : 'hortifrut';
   USER_ALLOWED_TABS = (profile && Array.isArray(profile.allowed_tabs) && profile.allowed_tabs.length) ? profile.allowed_tabs : null;
   USER_AIR_RECENT_ONLY = !!(profile && profile.air_recent_only);
+  AIR_LOGOP_KEYS = (profile && profile.air_logop_keys && typeof profile.air_logop_keys === 'object' && Object.keys(profile.air_logop_keys).length) ? profile.air_logop_keys : null;
+  AIR_ACTIVE_LOGOP = null;
   document.getElementById('sbRoleName').textContent = profile?.full_name || email;
   document.getElementById('sbRoleTag').textContent = 'rol: ' + USER_ROLE;
   document.getElementById('gateOverlay').style.display = 'none';
@@ -2228,8 +2237,37 @@ function openInstructivos(){
 }
 function closeInstructivos(){ document.getElementById('instructivosOverlay').classList.remove('open'); }
 
+// Candado de clave para cuentas con air_logop_keys: nada de Air Program se
+// muestra hasta que la clave entra, y una vez válida queda fija por el resto
+// de la sesión (sin control para cambiarla ni para ver otro Logistics Operator).
+function renderAirKeyGate(){
+  return `
+  <div class="card" style="max-width:380px;margin:60px auto;text-align:center;">
+    <div style="font-size:28px;margin-bottom:10px;">🔒</div>
+    <div class="ct" style="justify-content:center;">Clave de acceso</div>
+    <div style="font-size:12px;color:var(--ink-soft);margin:6px 0 14px;">Ingresa tu clave para ver tus despachos aéreos.</div>
+    <input type="password" id="air-key-input" placeholder="Clave" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:13px;margin-bottom:10px;" onkeydown="if(event.key==='Enter') airSubmitKey()">
+    <button type="button" class="fc-metric-btn active" style="width:100%;justify-content:center;" onclick="airSubmitKey()">Ingresar</button>
+    <div id="air-key-err" style="color:var(--bad);font-size:11.5px;margin-top:10px;"></div>
+  </div>`;
+}
+function airSubmitKey(){
+  const input = document.getElementById('air-key-input');
+  const val = (input.value || '').trim();
+  const match = val && AIR_LOGOP_KEYS ? AIR_LOGOP_KEYS[val] : null;
+  if (!match){
+    document.getElementById('air-key-err').textContent = 'Clave inválida.';
+    input.value = '';
+    input.focus();
+    return;
+  }
+  AIR_ACTIVE_LOGOP = match;
+  document.getElementById('p-air').innerHTML = renderAir();
+  refreshAir();
+}
 
 function renderAir(){
+  if (AIR_LOGOP_KEYS && !AIR_ACTIVE_LOGOP) return renderAirKeyGate();
   const rows = AIR || [];
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort(cmpDDMMYYYY);
@@ -2253,7 +2291,7 @@ function renderAir(){
       ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
       <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="airSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
       `}
-      ${msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
+      ${AIR_LOGOP_KEYS ? `<span class="pill ok" style="font-family:'JetBrains Mono',monospace;">🔒 Logistics Operator (fijo): ${AIR_ACTIVE_LOGOP}</span>` : msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
     </div>
   </div>
   <div id="air-kg"></div>
@@ -2288,6 +2326,15 @@ function refreshAir(){
   const selLOraw = msdFilterValues('msd-air-lo');
 
   let ft = rows;
+  if (AIR_ACTIVE_LOGOP){
+    // Candado por clave: solo despachos del Logistics Operator que mapea la
+    // clave ingresada, MÁS los que no tienen log_op o traen un valor que no
+    // coincide con ningún operador conocido (vacíos/mal escritos) — esos
+    // quedan visibles para cualquier clave, como respaldo para no esconder
+    // un despacho real detrás de un dato mal cargado.
+    const knownOps = Object.values(AIR_LOGOP_KEYS || {});
+    ft = ft.filter(r => r.log_op === AIR_ACTIVE_LOGOP || !r.log_op || !knownOps.includes(r.log_op));
+  }
   if (USER_AIR_RECENT_ONLY){
     // Cuenta con fecha fija: ignora cualquier filtro de Pack Plan/Dispatch Date
     // (ni siquiera se renderizan esos controles) y limita siempre a la
