@@ -1407,6 +1407,21 @@ function refreshPorts(){
   if (selLine.length) ft = ft.filter(r=>selLine.includes(r.line));
   if (selTop.length) ft = ft.filter(r=>selTop.includes(r.transport_operator));
 
+  // Filtros en cascada: cada checklist solo ofrece opciones que existen en
+  // el subconjunto de datos que dejan los DEMÁS filtros activos.
+  const portsCascadeExcl = (exclude) => {
+    let r = rows;
+    if (exclude!=='status' && selStatus.length) r = r.filter(x=>selStatus.includes(x.status));
+    if (exclude!=='week' && selWeeks.length) r = r.filter(x=>selWeeks.includes(x.pack_plan));
+    if (exclude!=='line' && selLine.length) r = r.filter(x=>selLine.includes(x.line));
+    if (exclude!=='top' && selTop.length) r = r.filter(x=>selTop.includes(x.transport_operator));
+    return r;
+  };
+  msdRebuild('msd-ports-status', [...new Set(portsCascadeExcl('status').map(r=>r.status).filter(Boolean))].sort());
+  msdRebuild('msd-ports-week', [...new Set(portsCascadeExcl('week').map(r=>r.pack_plan))].sort((a,b)=>a-b), w=>'S'+w);
+  msdRebuild('msd-ports-line', [...new Set(portsCascadeExcl('line').map(r=>r.line).filter(Boolean))].sort());
+  msdRebuild('msd-ports-top', [...new Set(portsCascadeExcl('top').map(r=>r.transport_operator).filter(Boolean))].sort());
+
   document.getElementById('ports-stat').textContent = `${ft.length} de ${rows.length} registros · métrica: ${portsMetric==='fcl'?'FCL':'PO'}`;
 
   const unitLbl = portsMetric==='fcl' ? 'FCL' : 'PO';
@@ -1890,12 +1905,33 @@ function pmiGlobalFiltered(dataset){
 
 function refreshPMIAll(){
   if (!document.getElementById('pmi-kpis')) return;
+  const em = EMBARQUES || [];
   const selPK = msdFilterValues('msd-pmi-pk');
   const selPP = msdFilterValues('msd-pmi-pp');
   const selDD = msdFilterValues('msd-pmi-dd');
   const selMO = msdFilterValues('msd-pmi-mo');
   const selLO = msdFilterValues('msd-pmi-lo');
   document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'} · Log. Operator: ${selLO?selLO.length+' sel.':'Todos'}`;
+
+  // Filtros en cascada: cada checklist solo ofrece opciones que existen en
+  // el subconjunto de datos que dejan los DEMÁS filtros activos.
+  const selPKarr = selPK || [], selPParr = selPP ? selPP.map(Number) : [], selDDarr = selDD || [], selMOarr = selMO || [], selLOarr = selLO || [];
+  const modeOrderPmi = ['Marítimo','Aéreo','Terrestre'];
+  const pmiCascadeExcl = (exclude) => {
+    let r = em;
+    if (exclude!=='pk' && selPKarr.length) r = r.filter(x=>selPKarr.includes(x.packing));
+    if (exclude!=='pp' && selPParr.length) r = r.filter(x=>selPParr.includes(x.pack_plan));
+    if (exclude!=='dd' && selDDarr.length) r = r.filter(x=>selDDarr.includes(x.dispatch_date||''));
+    if (exclude!=='mo' && selMOarr.length) r = r.filter(x=>selMOarr.includes(x.mode));
+    if (exclude!=='lo' && selLOarr.length) r = r.filter(x=>selLOarr.includes(x.log_op));
+    return r;
+  };
+  msdRebuild('msd-pmi-pk', [...new Set(pmiCascadeExcl('pk').map(r=>r.packing).filter(Boolean))].sort());
+  msdRebuild('msd-pmi-pp', [...new Set(pmiCascadeExcl('pp').map(r=>r.pack_plan))].sort((a,b)=>a-b), w=>'S'+w);
+  msdRebuild('msd-pmi-dd', [...new Set(pmiCascadeExcl('dd').map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY));
+  msdRebuild('msd-pmi-mo', [...new Set(pmiCascadeExcl('mo').map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrderPmi.indexOf(a)-modeOrderPmi.indexOf(b)), m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m);
+  msdRebuild('msd-pmi-lo', [...new Set(pmiCascadeExcl('lo').map(r=>r.log_op).filter(Boolean))].sort());
+
   renderPMIKPIs();
   renderSenasa();
   renderEmbarques();
@@ -2262,8 +2298,22 @@ function refreshAir(){
     const selPPraw = msdFilterValues('msd-air-pp');
     const selPP = selPPraw ? selPPraw.map(Number) : [];
     const selDD = msdFilterValues('msd-air-dd') || [];
+    const selLOarr = selLOraw || [];
     if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
     if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch));
+
+    // Filtros en cascada: cada checklist solo ofrece opciones que existen en
+    // el subconjunto de datos que dejan los DEMÁS filtros activos.
+    const airCascadeExcl = (exclude) => {
+      let r = rows;
+      if (exclude!=='pp' && selPP.length) r = r.filter(x=>selPP.includes(x.pack_plan));
+      if (exclude!=='dd' && selDD.length) r = r.filter(x=>selDD.includes(x.dispatch));
+      if (exclude!=='lo' && selLOarr.length) r = r.filter(x=>selLOarr.includes(x.log_op));
+      return r;
+    };
+    msdRebuild('msd-air-pp', [...new Set(airCascadeExcl('pp').map(r=>r.pack_plan))].sort((a,b)=>a-b), w=>'S'+w);
+    msdRebuild('msd-air-dd', [...new Set(airCascadeExcl('dd').map(r=>r.dispatch).filter(Boolean))].sort(cmpDDMMYYYY));
+    msdRebuild('msd-air-lo', [...new Set(airCascadeExcl('lo').map(r=>r.log_op).filter(Boolean))].sort());
   }
   if (selLOraw) ft = ft.filter(r=>selLOraw.includes(r.log_op));
 
