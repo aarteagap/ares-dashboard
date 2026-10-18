@@ -2266,9 +2266,19 @@ function airSubmitKey(){
   refreshAir();
 }
 
+// Candado por clave: recorta rows al Logistics Operator activo (+ el
+// respaldo de vacíos/no-reconocidos) — un solo punto de verdad que usan
+// tanto renderAir (opciones iniciales de Pack Plan/Dispatch Date) como
+// refreshAir (filtrado + cascada), para que ningún checklist se arme con
+// fechas/semanas que no existen en el universo de ese operador.
+function airLogopScope(rows){
+  if (!AIR_ACTIVE_LOGOP) return rows;
+  const knownOps = Object.values(AIR_LOGOP_KEYS || {});
+  return rows.filter(r => r.log_op === AIR_ACTIVE_LOGOP || !r.log_op || !knownOps.includes(r.log_op));
+}
 function renderAir(){
   if (AIR_LOGOP_KEYS && !AIR_ACTIVE_LOGOP) return renderAirKeyGate();
-  const rows = AIR || [];
+  const rows = airLogopScope(AIR || []);
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort(cmpDDMMYYYY);
   const logOps = [...new Set(rows.map(r=>r.log_op).filter(Boolean))].sort();
@@ -2321,20 +2331,11 @@ function airToggleRecentDay(btn){
   refreshAir();
 }
 function refreshAir(){
-  const rows = AIR || [];
+  const rows = airLogopScope(AIR || []);
   if (!document.getElementById('air-kg')) return;
   const selLOraw = msdFilterValues('msd-air-lo');
 
   let ft = rows;
-  if (AIR_ACTIVE_LOGOP){
-    // Candado por clave: solo despachos del Logistics Operator que mapea la
-    // clave ingresada, MÁS los que no tienen log_op o traen un valor que no
-    // coincide con ningún operador conocido (vacíos/mal escritos) — esos
-    // quedan visibles para cualquier clave, como respaldo para no esconder
-    // un despacho real detrás de un dato mal cargado.
-    const knownOps = Object.values(AIR_LOGOP_KEYS || {});
-    ft = ft.filter(r => r.log_op === AIR_ACTIVE_LOGOP || !r.log_op || !knownOps.includes(r.log_op));
-  }
   if (USER_AIR_RECENT_ONLY){
     // Cuenta con fecha fija: ignora cualquier filtro de Pack Plan/Dispatch Date
     // (ni siquiera se renderizan esos controles) y limita siempre a la
