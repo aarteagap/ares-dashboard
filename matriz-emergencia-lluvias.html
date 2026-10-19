@@ -281,7 +281,6 @@
     <div class="tab-btn" data-tab="durante"><span class="num">2</span>Durante · Replanificación</div>
     <div class="tab-btn" data-tab="despues"><span class="num">3</span>Después · Impacto &amp; KPIs</div>
     <div class="tab-btn" data-tab="plazos" style="margin-left:6px;">Plazos de carga en Packing</div>
-    <div class="tab-btn" data-tab="deadlines">Deadlines</div>
     <div class="tab-spacer"></div>
     <div class="mode-filter" id="modeFilter">
       <span class="mf-label">MODO</span>
@@ -535,10 +534,10 @@
         <b>Cómo se calcula:</b> hora límite de carga = <b>Cut-Off</b> − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales de esa línea, si hay puente caído con ruta alterna activa). Se usa el campo real <b>Cut-Off</b> de Horizon cuando la línea lo trae poblado (columna existe en el Excel, hoy solo con datos para Marítimo). Cuando no hay Cut-Off real se cae de vuelta al supuesto anterior: ETD − horas de corredor (el ETD no trae hora, solo día, así que se asume medianoche). Para <b>Aéreo</b>, que en Horizon no trae Cut-Off en ninguna fila, se asume por pedido del usuario <b>cutoff = ETD − 1 día</b> (la carga debe estar en el aeropuerto de Callao a más tardar el día calendario anterior al vuelo) — marcado en la tabla igual que un Cut-Off real, porque es una regla de negocio explícita, no una aproximación de tránsito. Líneas ya <b>FINALIZADAS</b> o <b>CANCELADAS/SIN RUTA</b> no tienen un plazo de carga útil y se muestran aparte.
       </div>
     </div>
-  </div>
 
-  <!-- ======================= VISTA · DEADLINES (fechas máximas de despacho por naviera) ======================= -->
-  <div class="view" id="view-deadlines">
+    <div style="height:1px; background:var(--border); margin:28px 0;"></div>
+
+    <!-- ======================= SECCIÓN · DEADLINES (fechas máximas de despacho por naviera) ======================= -->
     <div class="section-title">DEADLINES — FECHA MÁXIMA DE DESPACHO POR NAVIERA</div>
     <div class="card-sub" style="margin:-6px 0 16px;">General por línea naviera y sus destinos, <b>no</b> atado a pedidos reales — responde "si despacho hoy, ¿hasta qué fecha puedo seguir despachando con esta naviera y aun así llegar al próximo zarpe?", considerando el estado actual de puentes/rutas alternas de la pestaña "Antes". Si la naviera no tiene forma de llegar a su puerto de embarque, sus destinos salen marcados como <b>BLOQUEADOS</b> en vez de una fecha.</div>
 
@@ -578,7 +577,7 @@
     <div class="assumption-note" style="margin-top:16px;">
       <span>⚠</span>
       <div>
-        <b>Cómo se calcula:</b> se toma el próximo día de la semana en que zarpa cada línea (día configurado arriba) desde la fecha actual de la simulación; el cutoff estimado = zarpe − días de anticipación (07:00). La fecha límite de salida de planta = cutoff − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales si hay un puente caído con ruta alterna activa). Si el puerto de esa línea está inoperativo <b>sin</b> ruta alterna, o la planta no tiene ruta modelada a ese puerto, todos los destinos de la línea salen como <b>BLOQUEADOS</b> para esa planta — no se calcula una fecha. A diferencia de "Plazos de carga en Packing" (que usa el Cut-Off real de cada pedido existente), esta vista es un cálculo genérico por línea/destino, para decisiones de <i>nuevos</i> despachos.
+        <b>Cómo se calcula:</b> se toma el próximo día de la semana en que zarpa cada línea (día configurado arriba) desde la fecha actual de la simulación; el cutoff estimado = zarpe − días de anticipación (07:00). La fecha límite de salida de planta = cutoff − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales si hay un puente caído con ruta alterna activa). Si el puerto de esa línea está inoperativo <b>sin</b> ruta alterna, o la planta no tiene ruta modelada a ese puerto, todos los destinos de la línea salen como <b>BLOQUEADOS</b> para esa planta — no se calcula una fecha. A diferencia del cronograma de arriba (que usa el Cut-Off real de cada pedido existente), esta sección es un cálculo genérico por línea/destino, para decisiones de <i>nuevos</i> despachos.
       </div>
     </div>
   </div>
