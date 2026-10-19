@@ -281,6 +281,7 @@
     <div class="tab-btn" data-tab="durante"><span class="num">2</span>Durante · Replanificación</div>
     <div class="tab-btn" data-tab="despues"><span class="num">3</span>Después · Impacto &amp; KPIs</div>
     <div class="tab-btn" data-tab="plazos" style="margin-left:6px;">Plazos de carga en Packing</div>
+    <div class="tab-btn" data-tab="deadlines">Deadlines</div>
     <div class="tab-spacer"></div>
     <div class="mode-filter" id="modeFilter">
       <span class="mf-label">MODO</span>
@@ -536,6 +537,52 @@
     </div>
   </div>
 
+  <!-- ======================= VISTA · DEADLINES (fechas máximas de despacho por naviera) ======================= -->
+  <div class="view" id="view-deadlines">
+    <div class="section-title">DEADLINES — FECHA MÁXIMA DE DESPACHO POR NAVIERA</div>
+    <div class="card-sub" style="margin:-6px 0 16px;">General por línea naviera y sus destinos, <b>no</b> atado a pedidos reales — responde "si despacho hoy, ¿hasta qué fecha puedo seguir despachando con esta naviera y aun así llegar al próximo zarpe?", considerando el estado actual de puentes/rutas alternas de la pestaña "Antes". Si la naviera no tiene forma de llegar a su puerto de embarque, sus destinos salen marcados como <b>BLOQUEADOS</b> en vez de una fecha.</div>
+
+    <div class="panel" style="padding:18px; margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:4px;">Supuestos de zarpe (editables)</div>
+      <div class="card-sub" style="margin-bottom:14px;">Día de zarpe semanal por línea y anticipación del cutoff. Solo <b>Cosco (jueves)</b> está confirmado — el resto son estimados de prototipo, ajústalos si Tráfico/Operaciones confirma otro día con cada naviera.</div>
+      <div class="assump-row">
+        <div class="assump-label">Anticipación del cutoff<br /><small>días antes del zarpe en que cierra el puerto (hora fija 07:00)</small></div>
+        <div class="assump-input"><input type="number" id="inputDiasCutoffZarpe" value="1" min="0" step="1" /><span>día(s)</span></div>
+      </div>
+      <div id="zarpeInputsGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:10px; margin-top:10px;"></div>
+    </div>
+
+    <div class="panel" style="padding:0; overflow:hidden;">
+      <div class="section-title" style="padding:16px 16px 0;">PRÓXIMO ZARPE POR NAVIERA</div>
+      <div style="overflow-x:auto;">
+        <table class="board">
+          <thead>
+            <tr>
+              <th>LÍNEA NAVIERA</th>
+              <th>PUERTO EMBARQUE</th>
+              <th>DESTINOS</th>
+              <th>PRÓXIMO ZARPE</th>
+              <th>CUT-OFF ESTIMADO</th>
+              <th>PLANTA</th>
+              <th>HORAS CORREDOR (normal + desvío)</th>
+              <th>DEBE SALIR DE PLANTA ANTES DE</th>
+              <th>MARGEN DESDE HOY</th>
+              <th>ESTADO</th>
+            </tr>
+          </thead>
+          <tbody id="deadlinesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="assumption-note" style="margin-top:16px;">
+      <span>⚠</span>
+      <div>
+        <b>Cómo se calcula:</b> se toma el próximo día de la semana en que zarpa cada línea (día configurado arriba) desde la fecha actual de la simulación; el cutoff estimado = zarpe − días de anticipación (07:00). La fecha límite de salida de planta = cutoff − (horas de corredor de <code>CORREDOR_HORAS[planta][puerto]</code> + horas de desvío actuales si hay un puente caído con ruta alterna activa). Si el puerto de esa línea está inoperativo <b>sin</b> ruta alterna, o la planta no tiene ruta modelada a ese puerto, todos los destinos de la línea salen como <b>BLOQUEADOS</b> para esa planta — no se calcula una fecha. A diferencia de "Plazos de carga en Packing" (que usa el Cut-Off real de cada pedido existente), esta vista es un cálculo genérico por línea/destino, para decisiones de <i>nuevos</i> despachos.
+      </div>
+    </div>
+  </div>
+
   <div class="footer-note">
     <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 15 registros de esta simulación son una <b>muestra representativa de despachos reales de Chao</b> tomada del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente, actualizado el 18 sep 2026 (ETD 18–28 sep 2026: 9 Marítimo, 2 Aéreo, 4 Terrestre con fecha ajustada — ver comentario junto a <code>SHIPMENTS</code>) — no es el volumen completo de Chao (~1000 filas), sino una muestra con variedad de POD/naviera siguiendo el instructivo de actualización. Incluye el campo real <b>Cut-Off</b> de Horizon donde está poblado (solo Marítimo); para Aéreo, que no trae Cut-Off en Horizon, se asume ETD − 1 día por pedido del usuario. Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
   </div>
@@ -710,6 +757,25 @@ const CORREDOR_HORAS = {
   'Olmos':     { 'Paita': 4 },
 };
 
+// Día de zarpe semanal por línea naviera (para la vista "Deadlines" — fechas máximas de despacho
+// GENERALES por línea/destino, no atadas a un pedido real) y los destinos que cubre cada una.
+// SOLO Cosco está confirmado por el usuario (zarpa los jueves). El resto son supuestos de prototipo
+// derivados de la(s) única(s) fecha(s) de ETD real vistas en la muestra de SHIPMENTS — con 1-2 datos no
+// alcanza para confirmar un patrón semanal real, así que quedan editables en la vista y marcados como
+// "estimado" hasta que Tráfico/Operaciones los confirme con cada naviera.
+// diaZarpe: 0=Domingo .. 6=Sábado (mismo criterio que weekday()/Date.getDay()).
+const LINEA_INFO = [
+  { id:'Cosco',            puerto:'Callao', destinos:['Shanghai','Kaohsiung'],       diaZarpe:4, fuente:'confirmado' },
+  { id:'Seaboard',         puerto:'Paita',  destinos:['Miami','Philadelphia'],       diaZarpe:4, fuente:'estimado' },
+  { id:'Seatrade',         puerto:'Paita',  destinos:['Dover','Vlissingen'],         diaZarpe:0, fuente:'estimado' },
+  { id:'Network Shipping', puerto:'Paita',  destinos:['Port Hueneme'],               diaZarpe:1, fuente:'estimado' },
+  { id:'Maersk Line',      puerto:'Callao', destinos:['Algeciras'],                  diaZarpe:6, fuente:'estimado' },
+  { id:'CMA CGM',          puerto:'Callao', destinos:['Rotterdam'],                  diaZarpe:2, fuente:'estimado' },
+  { id:'Evergreen',        puerto:'Callao', destinos:['Shenzhen','Kaohsiung'],       diaZarpe:3, fuente:'estimado' },
+  { id:'Wan Hai',          puerto:'Callao', destinos:['Kaohsiung'],                  diaZarpe:4, fuente:'estimado' },
+];
+const DIA_LABEL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
 // PODs que solo pueden embarcarse por Chancay/Callao (no se permite cambio de puerto).
 const ASIA_PODS = ['Shanghai','Kaohsiung','Shenzhen','Singapur'];
 // Puertos de embarque habilitados para intercambio Seaboard (marítimo).
@@ -821,6 +887,8 @@ const state = {
   bridges: Object.fromEntries(BRIDGES.map(b => [b.id, false])), // caido true/false
   altOverride: Object.fromEntries(BRIDGES.filter(b => b.altAvailable).map(b => [b.id, true])), // ruta alterna disponible (default true), doble check manual
   sopApproval: Object.fromEntries(SHIPMENTS.map(s => [s.id, true])), // aprobación SOP por línea (default true) — si se desmarca, pasa a "stand by"
+  diaZarpeOverride: Object.fromEntries(LINEA_INFO.map(l => [l.id, l.diaZarpe])), // editable por línea en "Deadlines"
+  diasCutoffZarpe: 1, // días de anticipación del cutoff antes del zarpe (supuesto global editable, hora fija 07:00)
   borders: Object.fromEntries(BORDERS.map(b => [b.id, false])), // ruta terrestre internacional cortada true/false
   providerIncrease: {
     transporte: Object.fromEntries(PROVIDERS.transporte.map(p => [p.id, 0])),
@@ -1926,6 +1994,103 @@ function fmtHoras(h){
   return `${Math.round(h)}h`;
 }
 
+/* ======================================================================
+   # DEADLINES — fecha máxima de despacho por línea naviera, GENERAL
+   (no atada a pedidos reales). Responde: si despacho hoy con esta
+   naviera, ¿hasta qué fecha puedo seguir despachando y aún así
+   llegar al próximo zarpe, dado el estado actual de puentes?
+   ====================================================================== */
+function nextZarpeAndCutoff(lineaId){
+  const diaZarpe = state.diaZarpeOverride[lineaId];
+  const diasCutoff = state.diasCutoffZarpe;
+  let diff = (diaZarpe - state.simDate.getDay() + 7) % 7;
+  let zarpe = new Date(state.simDate.getTime());
+  zarpe.setDate(zarpe.getDate() + diff);
+  zarpe.setHours(0,0,0,0);
+  let cutoff = new Date(zarpe.getTime());
+  cutoff.setDate(cutoff.getDate() - diasCutoff);
+  cutoff.setHours(7,0,0,0);
+  if(cutoff.getTime() < state.simDate.getTime()){
+    zarpe.setDate(zarpe.getDate() + 7);
+    cutoff.setDate(cutoff.getDate() + 7);
+  }
+  return { zarpe, cutoff };
+}
+function renderDeadlines(){
+  document.getElementById('zarpeInputsGrid').innerHTML = LINEA_INFO.map(l => `
+    <div class="assump-row" style="padding:4px 0;">
+      <div class="assump-label" style="font-size:11px;">${l.id}${l.fuente==='confirmado' ? ' <span style="color:var(--green);">✓ confirmado</span>' : ' <span style="color:var(--text-ghost);">(estimado)</span>'}</div>
+      <div class="assump-input">
+        <select id="zarpe-${l.id}" style="font-family:inherit; background:var(--panel-3); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:5px 8px;">
+          ${DIA_LABEL.map((d,i) => `<option value="${i}" ${state.diaZarpeOverride[l.id]===i?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+    </div>`).join('');
+  LINEA_INFO.forEach(l => {
+    document.getElementById(`zarpe-${l.id}`).addEventListener('change', e => {
+      state.diaZarpeOverride[l.id] = Number(e.target.value);
+      renderAll();
+    });
+  });
+
+  const plantas = [...new Set([...SHIPMENTS.map(s => s.planta), 'Chao', 'Salaverry', 'Olmos'])];
+  const rows = [];
+  LINEA_INFO.forEach(l => {
+    const { zarpe, cutoff } = nextZarpeAndCutoff(l.id);
+    plantas.forEach(planta => {
+      const horasCorredor = CORREDOR_HORAS[planta] && CORREDOR_HORAS[planta][l.puerto];
+      const check = bridgeCheck(planta, l.puerto);
+      const sinRuta = horasCorredor == null;
+      const bloqueado = sinRuta || check.bloqueado;
+      let limite = null, margenHoras = null, horasTotal = null;
+      if(!bloqueado){
+        horasTotal = horasCorredor + (check.afectado ? check.desvio : 0);
+        limite = new Date(cutoff.getTime() - horasTotal*3600*1000);
+        margenHoras = (limite.getTime() - state.simDate.getTime()) / 3600000;
+      }
+      rows.push({ l, planta, zarpe, cutoff, horasCorredor, horasTotal, check, sinRuta, bloqueado, limite, margenHoras });
+    });
+  });
+  rows.sort((a,b) => {
+    if(a.bloqueado !== b.bloqueado) return a.bloqueado ? 1 : -1;
+    return (a.limite?.getTime() ?? Infinity) - (b.limite?.getTime() ?? Infinity);
+  });
+
+  document.getElementById('deadlinesBody').innerHTML = rows.map(r => {
+    const destinosTxt = r.l.destinos.join(', ');
+    if(r.bloqueado){
+      const motivo = r.sinRuta ? 'Sin ruta modelada planta→puerto' : `${r.l.puerto} sin ruta alterna — corte total`;
+      return `<tr>
+        <td>${r.l.id}</td>
+        <td>${r.l.puerto}</td>
+        <td style="color:var(--text-dim);">${destinosTxt}</td>
+        <td class="mono">${fmtDateTimePlazo(r.zarpe)}</td>
+        <td class="mono">${fmtDateTimePlazo(r.cutoff)}</td>
+        <td class="plant">${r.planta}</td>
+        <td colspan="3" style="color:var(--red);">${motivo}</td>
+        <td><span class="status-pill" style="background:var(--red)22; color:var(--red); border:1px solid var(--red)55;">DESTINOS BLOQUEADOS</span></td>
+      </tr>`;
+    }
+    const estado = r.margenHoras < 0
+      ? { txt:'VENCIDO', color:'var(--red)' }
+      : (r.margenHoras <= 24 ? { txt:'URGENTE', color:'var(--amber)' } : { txt:'A TIEMPO', color:'var(--green)' });
+    const margenTxt = r.margenHoras < 0 ? `hace ${fmtHoras(-r.margenHoras)}` : `en ${fmtHoras(r.margenHoras)}`;
+    return `<tr>
+      <td>${r.l.id}</td>
+      <td>${r.l.puerto}</td>
+      <td style="color:var(--text-dim);">${destinosTxt}</td>
+      <td class="mono">${fmtDateTimePlazo(r.zarpe)}</td>
+      <td class="mono">${fmtDateTimePlazo(r.cutoff)}</td>
+      <td class="plant">${r.planta}</td>
+      <td class="mono">${r.horasCorredor}h${r.check.afectado && r.check.desvio ? ` + ${r.check.desvio}h desvío` : ''} = ${r.horasTotal}h</td>
+      <td class="mono" style="color:${estado.color};">${fmtDateTimePlazo(r.limite)}</td>
+      <td class="mono" style="color:${estado.color};">${margenTxt}</td>
+      <td><span class="status-pill" style="background:${estado.color}22; color:${estado.color}; border:1px solid ${estado.color}55;">${estado.txt}</span></td>
+    </tr>`;
+  }).join('');
+}
+document.getElementById('inputDiasCutoffZarpe').addEventListener('input', e => { state.diasCutoffZarpe = Number(e.target.value)||0; renderAll(); });
+
 function renderAll(){
   const calc = computeAll();
   renderBridgePanel();
@@ -1940,6 +2105,7 @@ function renderAll(){
   renderAlerts(calc);
   renderRules();
   renderPlazos();
+  renderDeadlines();
 }
 
 /* ======================================================================
