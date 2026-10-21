@@ -112,8 +112,11 @@ def load_season_kg(season, path, sheet_name):
     i_dispatch = col("F. de Despacho", "Dispatch Date")
     i_weight = col("Peso Neto", "Net weight")
 
-    kg_agg = defaultdict(float)
-    n_bookings_con_kg = 0
+    # 1ra pasada: junta todas las instrucciones Confirmado (con o sin peso) y
+    # el promedio de Kg/instrucción por Vía, a partir de las que SÍ traen peso.
+    instructions = []
+    kg_sum_by_via = defaultdict(float)
+    n_con_peso_by_via = defaultdict(int)
     n_rows_confirmado = 0
     for r in rows_iter:
         status = norm(r[i_status])
@@ -127,21 +130,49 @@ def load_season_kg(season, path, sheet_name):
         if d is None:
             continue
         kg = r[i_weight] if numeric(r[i_weight]) else None
-        if not kg or kg <= 0:
-            continue
-        if kg > 100000:
-            # mismo error de unidad detectado en Horizon (peso en gramos)
-            kg = kg / 1000
+        if kg and kg > 0:
+            if kg > 100000:
+                # mismo error de unidad detectado en Horizon (peso en gramos)
+                kg = kg / 1000
+            kg_sum_by_via[via] += kg
+            n_con_peso_by_via[via] += 1
+        else:
+            kg = None
         shipper = map_shipper(r[i_shipper])
         week = d.isocalendar()[1]
         cweek = to_campaign_week(d, season)
-        kg_agg[(season, week, cweek, via, shipper)] += kg
-        n_bookings_con_kg += 1
+        instructions.append({"via": via, "shipper": shipper, "week": week,
+                              "cweek": cweek, "kg": kg})
+
+    avg_kg_by_via = {
+        via: kg_sum_by_via[via] / n_con_peso_by_via[via]
+        for via in kg_sum_by_via if n_con_peso_by_via[via] > 0
+    }
+
+    # 2da pasada: agrega Kg real donde existe, o el promedio de esa Vía/
+    # temporada donde falta (pedido por el usuario para que no se note tan
+    # irregular la cobertura parcial de peso registrado).
+    kg_agg = defaultdict(float)
+    n_reales, n_imputados = 0, 0
+    for ins in instructions:
+        kg = ins["kg"]
+        if kg is None:
+            kg = avg_kg_by_via.get(ins["via"])
+            if kg is None:
+                continue  # sin ningún dato de peso para esa vía en la temporada
+            n_imputados += 1
+        else:
+            n_reales += 1
+        key = (season, ins["week"], ins["cweek"], ins["via"], ins["shipper"])
+        kg_agg[key] += kg
+    n_bookings_con_kg = n_reales + n_imputados
 
     print(f"{season}: {n_rows_confirmado} filas Confirmado, "
-          f"{n_bookings_con_kg} con Kg utilizable, "
-          f"{len(kg_agg)} buckets semana/vía/exportador")
-    return kg_agg
+          f"{n_bookings_con_kg} con Kg ({n_reales} reales + {n_imputados} "
+          f"imputados con promedio Kg/instrucción de su Vía), "
+          f"{len(kg_agg)} buckets semana/vía/exportador, "
+          f"promedio Kg/instrucción: {({v: round(k,1) for v,k in avg_kg_by_via.items()})}")
+    return kg_agg, n_reales, n_imputados
 
 
 def main():
@@ -154,8 +185,10 @@ def main():
                           if r["s"] not in FILES]
 
     all_rows = []
+    totales_imputacion = {}
     for season, (path, sheet) in FILES.items():
-        kg_agg = load_season_kg(season, path, sheet)
+        kg_agg, n_reales, n_imputados = load_season_kg(season, path, sheet)
+        totales_imputacion[season] = (n_reales, n_imputados)
         all_rows.extend(
             {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1), "p": False}
             for (s, w, cw, v, ex), kg in kg_agg.items()
@@ -169,11 +202,19 @@ def main():
 
     # actualiza la nota de metodología del modo Kg
     partes = " · ".join(f"{s}: {total_kg_by_season[s]:,.0f} kg" for s in FILES)
+    imput_txt = " · ".join(
+        f"{s}: {totales_imputacion[s][0]} reales + {totales_imputacion[s][1]} imputados"
+        for s in FILES
+    )
     data["meta"]["kg_note"] = (
-        "El modo USD/Kg usa el peso neto real de los despachos: para T23-24/"
-        "T24-25/T25-26, de las hojas de programa de despacho históricas "
-        f"(BD_2324/BD_2425/BD_2526, filas Status/Estado='Confirmado'; {partes} "
-        "en total); para T26-27, de Horizon (despachos confirmados). El tramo "
+        "El modo USD/Kg usa el peso neto real de los despachos cuando está "
+        "registrado, y donde falta se completa con el promedio de Kg por "
+        "PO/instrucción Confirmada de esa Vía y temporada (para que la "
+        "cobertura parcial de peso registrado no se note irregular semana a "
+        "semana). Fuente: para T23-24/T24-25/T25-26, los programas de "
+        "despacho históricos (BD_2324/BD_2425/BD_2526, filas Status/"
+        f"Estado='Confirmado'; {partes} en total — {imput_txt}); para T26-27, "
+        "Horizon (despachos confirmados). El tramo "
         "proyectado de T26-27 (línea punteada) usa Kg estimado = promedio "
         "histórico de Kg por PO/instrucción confirmada de cada Vía × Nº de "
         "instrucciones proyectadas de esa semana, ya que Horizon no trae peso "

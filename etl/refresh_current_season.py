@@ -323,17 +323,32 @@ def main():
             })
     total_proj_usd = sum(r["usd"] for r in projected_rows)
 
-    # -- Kg reales despachados (de Horizon confirmado), por semana/vía/exportador --
-    kg_agg = defaultdict(float)
-    n_bookings_con_kg = 0
+    # -- Kg despachados (de Horizon confirmado): real donde existe, o
+    #    promedio de Kg/PO de esa Vía donde falta (pedido por el usuario para
+    #    que la cobertura parcial de peso registrado no se note irregular),
+    #    por semana/vía/exportador --
     kg_sum_by_via = defaultdict(float)
     n_bk_con_kg_by_via = defaultdict(int)
+    n_bookings_con_kg = 0
     for bk, m in confirmed_map.items():
         if m["kg"]:
-            kg_agg[(SEASON, m["week"], m["cweek"], m["via"], m["shipper"])] += m["kg"]
             n_bookings_con_kg += 1
             kg_sum_by_via[m["via"]] += m["kg"]
             n_bk_con_kg_by_via[m["via"]] += 1
+    avg_kg_by_via = {
+        via: kg_sum_by_via[via] / n_bk_con_kg_by_via[via]
+        for via in kg_sum_by_via if n_bk_con_kg_by_via[via] > 0
+    }
+    n_bookings_imputados = 0
+    kg_agg = defaultdict(float)
+    for bk, m in confirmed_map.items():
+        kg = m["kg"]
+        if not kg:
+            kg = avg_kg_by_via.get(m["via"])
+            if not kg:
+                continue
+            n_bookings_imputados += 1
+        kg_agg[(SEASON, m["week"], m["cweek"], m["via"], m["shipper"])] += kg
     weekly_kg_rows = [
         {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1), "p": False}
         for (s, w, cw, v, ex), kg in kg_agg.items()
@@ -343,10 +358,6 @@ def main():
     #    por Vía (Marítimo/Aéreo), × Nº de instrucciones proyectadas de esa
     #    semana. Pedido por el usuario como respaldo mientras no haya Kg real
     #    para las instrucciones 'Proyectado' de Horizon.
-    avg_kg_by_via = {
-        via: kg_sum_by_via[via] / n_bk_con_kg_by_via[via]
-        for via in kg_sum_by_via if n_bk_con_kg_by_via[via] > 0
-    }
     projected_kg_rows = []
     for (via, shipper, week, cweek), n_instr in n_instr_bucket.items():
         avg_kg = avg_kg_by_via.get(via)
@@ -460,17 +471,14 @@ def main():
     avg_kg_txt = " · ".join(f"{v}: {avg_kg_by_via[v]:,.0f} kg/PO" for v in avg_kg_by_via)
     data["meta"]["kg_note"] = (
         "El modo USD/Kg usa el peso neto (Net weight) real de los despachos "
-        "CONFIRMADOS de T26-27 en Horizon "
-        f"({n_bookings_con_kg} de {len(confirmed_map)} bookings confirmados traen Kg; "
+        "CONFIRMADOS de T26-27 en Horizon donde está registrado "
+        f"({n_bookings_con_kg} de {len(confirmed_map)} bookings confirmados; "
         "se detectaron ~20 filas con el peso cargado en gramos en vez de kg "
-        "-valores >100,000- y se normalizaron ÷1000). "
-        "Para el tramo PROYECTADO de T26-27 (línea punteada), Horizon no trae Kg "
-        "todavía: se estima con el promedio histórico de Kg por PO/instrucción "
-        f"confirmada de cada Vía ({avg_kg_txt}) × Nº de instrucciones proyectadas de "
-        "esa semana — mismo criterio que la proyección en USD. "
-        "No hay dato de Kg para T23-24/T24-25/T25-26 (no viene en el dataset histórico "
-        "ya agregado); esas 3 series no se grafican en modo USD/Kg hasta tener una "
-        "fuente de Kg exportados por semana para esas temporadas."
+        "-valores >100,000- y se normalizaron ÷1000), y donde falta se completa "
+        f"con el promedio de Kg/PO de esa Vía ({n_bookings_imputados} bookings "
+        "imputados). Para el tramo PROYECTADO de T26-27 (línea punteada), se "
+        f"estima con ese mismo promedio ({avg_kg_txt}) × Nº de instrucciones "
+        "proyectadas de esa semana — mismo criterio que la proyección en USD."
     )
 
     with open(DATA_JSON, "w", encoding="utf-8") as f:
