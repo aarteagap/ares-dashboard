@@ -123,9 +123,11 @@ def load_horizon():
     i_etd = col("ETD")
     i_packplan = col("Pack Plan")
     i_booking = col("Booking|AWB|CRT", "Booking")
+    i_po = col("PO")
     i_weight = col("Net weight")
 
-    confirmed = {}   # booking_norm -> {via, shipper, date, week, cweek, kg}
+    confirmed_by_bk = {}  # booking_norm -> {via, shipper, week, cweek, kg}
+    confirmed_by_po = {}  # po_norm -> {via, shipper, week, cweek, kg}
     projected = []   # [{via, shipper, week, cweek}]
     n_confirmed_sin_fecha = 0
     n_proyectado_sin_fecha = 0
@@ -151,7 +153,8 @@ def load_horizon():
 
         if status == "Confirmado":
             bk = r[i_booking]
-            if bk is None or bk == "N/A" or week is None:
+            po = r[i_po] if i_po is not None else None
+            if week is None or (bk in (None, "N/A") and po in (None, "N/A")):
                 n_confirmed_sin_fecha += 1
                 continue
             kg = r[i_weight] if numeric(r[i_weight]) else None
@@ -160,17 +163,18 @@ def load_horizon():
                 # peso en gramos en vez de kg (ej. 12,150,000 en vez de
                 # 12,150). Se detecta por outlier extremo y se normaliza.
                 kg = kg / 1000
-            confirmed[norm(bk)] = {
-                "via": via, "shipper": shipper, "week": week, "cweek": cweek,
-                "kg": kg,
-            }
+            info = {"via": via, "shipper": shipper, "week": week, "cweek": cweek, "kg": kg}
+            if bk not in (None, "N/A"):
+                confirmed_by_bk[norm(bk)] = info
+            if po not in (None, "N/A"):
+                confirmed_by_po[norm(po)] = info
         elif status == "Proyectado":
             if week is None:
                 n_proyectado_sin_fecha += 1
                 continue
             projected.append({"via": via, "shipper": shipper, "week": week, "cweek": cweek})
 
-    return confirmed, projected, n_confirmed_sin_fecha, n_proyectado_sin_fecha
+    return confirmed_by_bk, confirmed_by_po, projected, n_confirmed_sin_fecha, n_proyectado_sin_fecha
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +192,7 @@ def load_gaopex():
     i_grupo = col("OPEX Expense Group")
     i_usd = col("Total Expense USD")
     i_booking = col("Booking")
+    i_po = col("PO")
 
     rows = []
     n_rows_total = 0
@@ -212,9 +217,10 @@ def load_gaopex():
         supplier = str(r[i_supplier]).strip() if r[i_supplier] else "Sin especificar"
         shipper = map_shipper(r[i_shipper]) if i_shipper is not None else "Sin especificar"
         booking_raw = r[i_booking]
+        po_raw = r[i_po] if i_po is not None else None
         rows.append({
             "concepto": concepto, "opex": grupo, "usd": usd, "shipper": shipper,
-            "supplier": supplier, "booking": booking_raw,
+            "supplier": supplier, "booking": booking_raw, "po": po_raw,
         })
     return rows, n_rows_total, total_usd_all_rows
 
@@ -250,29 +256,40 @@ def main():
     data["bookings"] = [b for b in data["bookings"] if b["s"] != SEASON]
     data["weekly_kg"] = [r for r in data.get("weekly_kg", []) if r["s"] != SEASON]
 
-    confirmed_map, projected_instr, n_conf_sf, n_proy_sf = load_horizon()
+    confirmed_by_bk, confirmed_by_po, projected_instr, n_conf_sf, n_proy_sf = load_horizon()
+    confirmed_map = confirmed_by_bk  # alias retro-compat
+    # Unión deduplicada de despachos confirmados (por identidad de objeto:
+    # una misma fila de Horizon puede estar indexada por Booking y por PO a
+    # la vez) -> usada para estadísticas de Kg y conteos globales.
+    confirmed_all = list({id(v): v for v in list(confirmed_by_bk.values()) + list(confirmed_by_po.values())}.values())
     gaopex_rows, n_rows_total, total_usd_all_rows = load_gaopex()
-    print(f"Horizon: {len(confirmed_map)} bookings confirmados con Vía+Fecha "
-          f"({n_conf_sf} sin fecha utilizable), {len(projected_instr)} instrucciones "
-          f"proyectadas ({n_proy_sf} sin fecha utilizable)")
+    print(f"Horizon: {len(confirmed_by_bk)} bookings + {len(confirmed_by_po)} PO "
+          f"confirmados con Vía+Fecha ({n_conf_sf} sin fecha utilizable), "
+          f"{len(projected_instr)} instrucciones proyectadas ({n_proy_sf} sin fecha utilizable)")
     print(f"GAOPEX: {n_rows_total} líneas totales, "
           f"{sum(1 for r in gaopex_rows)} clasificadas")
 
-    # -- cruce GAOPEX x Horizon confirmado --
+    # -- cruce GAOPEX x Horizon confirmado: primero por Booking, si no
+    #    matchea se intenta por PO (algunas líneas traen uno pero no el otro;
+    #    usar ambos como identificador sube la cobertura del cruce) --
     matched = []
     n_matched = 0
+    n_matched_by_po = 0
     for r in gaopex_rows:
         bk = r["booking"]
-        if bk is None:
-            continue
-        m = confirmed_map.get(norm(bk))
+        m = confirmed_by_bk.get(norm(bk)) if bk is not None else None
+        if not m:
+            po = r.get("po")
+            m = confirmed_by_po.get(norm(po)) if po is not None else None
+            if m:
+                n_matched_by_po += 1
         if not m:
             continue
         n_matched += 1
         matched.append({
             "s": SEASON, "w": m["week"], "cw": m["cweek"], "v": m["via"],
             "ex": r["shipper"], "o": r["opex"], "c": r["concepto"],
-            "usd": round(r["usd"], 2), "booking": str(bk).strip(),
+            "usd": round(r["usd"], 2), "booking": str(bk).strip() if bk else f"PO {r.get('po')}",
             "proveedor": r["supplier"],
         })
 
@@ -330,7 +347,7 @@ def main():
     kg_sum_by_via = defaultdict(float)
     n_bk_con_kg_by_via = defaultdict(int)
     n_bookings_con_kg = 0
-    for bk, m in confirmed_map.items():
+    for m in confirmed_all:
         if m["kg"]:
             n_bookings_con_kg += 1
             kg_sum_by_via[m["via"]] += m["kg"]
@@ -342,7 +359,7 @@ def main():
     n_bookings_imputados = 0
     kg_agg = defaultdict(float)
     kg_agg_real = defaultdict(float)
-    for bk, m in confirmed_map.items():
+    for m in confirmed_all:
         kg = m["kg"]
         key = (SEASON, m["week"], m["cweek"], m["via"], m["shipper"])
         if not kg:
@@ -401,7 +418,7 @@ def main():
         "n_rows_sin_clasificar": n_rows_total - len(gaopex_rows),
         "total_usd_all_rows": round(total_usd_all_rows, 2),
         "n_matched_con_via_fecha": n_matched,
-        "n_bookings_en_horizon": len(confirmed_map),
+        "n_bookings_en_horizon": len(confirmed_all),
         "n_bookings_solo_en_bd2526": 0,
         "n_bookings_con_kg": n_bookings_con_kg,
         "matched_usd": round(sum(r["usd"] for r in matched), 2),
@@ -464,8 +481,10 @@ def main():
         f"aprobación por el equipo de liquidación. De {n_rows_total} líneas del "
         f"archivo, {len(gaopex_rows)} ya tienen Concepto/Clasificación OPEX asignados. "
         f"El archivo GAOPEX no trae Vía ni Fecha de Despacho por sí solo: se cruza por "
-        f"Booking contra Horizon (hoja HORIZON_FORECAST), que solo registra Vía/Fecha/Kg "
-        f"para embarques ya CONFIRMADOS ({len(confirmed_map)} bookings con fecha real al "
+        f"Booking (y, si no matchea, por PO como respaldo — {n_matched_by_po} líneas se "
+        f"recuperaron así) contra Horizon (hoja HORIZON_FORECAST), que solo registra "
+        f"Vía/Fecha/Kg "
+        f"para embarques ya CONFIRMADOS ({len(confirmed_all)} bookings con fecha real al "
         f"día de hoy; el resto de Horizon es forecast a futuro). Del total clasificado, "
         f"{n_matched} líneas ({fmt_usd(sum(r['usd'] for r in matched))}) ya cruzaron con "
         f"Vía+Fecha y se incorporan a la línea de tiempo semanal, el comparativo anual y "
@@ -478,7 +497,7 @@ def main():
     data["meta"]["kg_note"] = (
         "El modo USD/Kg usa el peso neto (Net weight) real de los despachos "
         "CONFIRMADOS de T26-27 en Horizon donde está registrado "
-        f"({n_bookings_con_kg} de {len(confirmed_map)} bookings confirmados; "
+        f"({n_bookings_con_kg} de {len(confirmed_all)} bookings confirmados; "
         "se detectaron ~20 filas con el peso cargado en gramos en vez de kg "
         "-valores >100,000- y se normalizaron ÷1000), y donde falta se completa "
         f"con el promedio de Kg/PO de esa Vía ({n_bookings_imputados} bookings "
@@ -490,7 +509,8 @@ def main():
     with open(DATA_JSON, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     print("OK ->", DATA_JSON)
-    print("n_matched:", n_matched, "total matched usd:", round(sum(r['usd'] for r in matched), 2))
+    print("n_matched:", n_matched, f"(de los cuales {n_matched_by_po} solo matchearon por PO)",
+          "total matched usd:", round(sum(r['usd'] for r in matched), 2))
     print("projected usd:", round(total_proj_usd, 2), "n projected rows:", len(projected_rows))
     print("kg buckets:", len(weekly_kg_rows), "bookings con kg:", n_bookings_con_kg)
     print("avg kg/PO by via:", {k: round(v,1) for k,v in avg_kg_by_via.items()})
