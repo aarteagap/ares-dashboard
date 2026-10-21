@@ -151,20 +151,25 @@ def load_season_kg(season, path, sheet_name):
 
     # 2da pasada: agrega Kg real donde existe, o el promedio de esa Vía/
     # temporada donde falta (pedido por el usuario para que no se note tan
-    # irregular la cobertura parcial de peso registrado).
+    # irregular la cobertura parcial de peso registrado). kg_agg_real guarda
+    # SOLO la parte con peso realmente registrado, para poder excluir del
+    # modo USD/Kg los puntos "imputados" (anomalías) si el usuario lo pide.
     kg_agg = defaultdict(float)
+    kg_agg_real = defaultdict(float)
     n_reales, n_imputados = 0, 0
     for ins in instructions:
         kg = ins["kg"]
+        key = (season, ins["week"], ins["cweek"], ins["via"], ins["shipper"])
         if kg is None:
             kg = avg_kg_by_via.get(ins["via"])
             if kg is None:
                 continue  # sin ningún dato de peso para esa vía en la temporada
             n_imputados += 1
+            kg_agg[key] += kg
         else:
             n_reales += 1
-        key = (season, ins["week"], ins["cweek"], ins["via"], ins["shipper"])
-        kg_agg[key] += kg
+            kg_agg[key] += kg
+            kg_agg_real[key] += kg
     n_bookings_con_kg = n_reales + n_imputados
 
     print(f"{season}: {n_rows_confirmado} filas Confirmado, "
@@ -172,7 +177,7 @@ def load_season_kg(season, path, sheet_name):
           f"imputados con promedio Kg/instrucción de su Vía), "
           f"{len(kg_agg)} buckets semana/vía/exportador, "
           f"promedio Kg/instrucción: {({v: round(k,1) for v,k in avg_kg_by_via.items()})}")
-    return kg_agg, n_reales, n_imputados
+    return kg_agg, kg_agg_real, n_reales, n_imputados
 
 
 def main():
@@ -187,10 +192,11 @@ def main():
     all_rows = []
     totales_imputacion = {}
     for season, (path, sheet) in FILES.items():
-        kg_agg, n_reales, n_imputados = load_season_kg(season, path, sheet)
+        kg_agg, kg_agg_real, n_reales, n_imputados = load_season_kg(season, path, sheet)
         totales_imputacion[season] = (n_reales, n_imputados)
         all_rows.extend(
-            {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1), "p": False}
+            {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1),
+             "kg_real": round(kg_agg_real.get((s, w, cw, v, ex), 0.0), 1), "p": False}
             for (s, w, cw, v, ex), kg in kg_agg.items()
         )
 

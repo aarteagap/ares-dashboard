@@ -341,23 +341,29 @@ def main():
     }
     n_bookings_imputados = 0
     kg_agg = defaultdict(float)
+    kg_agg_real = defaultdict(float)
     for bk, m in confirmed_map.items():
         kg = m["kg"]
+        key = (SEASON, m["week"], m["cweek"], m["via"], m["shipper"])
         if not kg:
             kg = avg_kg_by_via.get(m["via"])
             if not kg:
                 continue
             n_bookings_imputados += 1
-        kg_agg[(SEASON, m["week"], m["cweek"], m["via"], m["shipper"])] += kg
+            kg_agg[key] += kg
+        else:
+            kg_agg[key] += kg
+            kg_agg_real[key] += kg
     weekly_kg_rows = [
-        {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1), "p": False}
+        {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1),
+         "kg_real": round(kg_agg_real.get((s, w, cw, v, ex), 0.0), 1), "p": False}
         for (s, w, cw, v, ex), kg in kg_agg.items()
     ]
 
     # -- Kg PROYECTADO: promedio histórico de Kg por PO/instrucción confirmada,
     #    por Vía (Marítimo/Aéreo), × Nº de instrucciones proyectadas de esa
     #    semana. Pedido por el usuario como respaldo mientras no haya Kg real
-    #    para las instrucciones 'Proyectado' de Horizon.
+    #    para las instrucciones 'Proyectado' de Horizon. 100% estimado -> kg_real=0.
     projected_kg_rows = []
     for (via, shipper, week, cweek), n_instr in n_instr_bucket.items():
         avg_kg = avg_kg_by_via.get(via)
@@ -365,7 +371,7 @@ def main():
             continue
         projected_kg_rows.append({
             "s": SEASON, "w": week, "cw": cweek, "v": via, "ex": shipper,
-            "kg": round(avg_kg * n_instr, 1), "p": True,
+            "kg": round(avg_kg * n_instr, 1), "kg_real": 0.0, "p": True,
         })
     total_proj_kg = sum(r["kg"] for r in projected_kg_rows)
 
