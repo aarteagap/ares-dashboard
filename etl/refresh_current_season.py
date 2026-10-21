@@ -326,19 +326,42 @@ def main():
     # -- Kg reales despachados (de Horizon confirmado), por semana/vía/exportador --
     kg_agg = defaultdict(float)
     n_bookings_con_kg = 0
+    kg_sum_by_via = defaultdict(float)
+    n_bk_con_kg_by_via = defaultdict(int)
     for bk, m in confirmed_map.items():
         if m["kg"]:
             kg_agg[(SEASON, m["week"], m["cweek"], m["via"], m["shipper"])] += m["kg"]
             n_bookings_con_kg += 1
+            kg_sum_by_via[m["via"]] += m["kg"]
+            n_bk_con_kg_by_via[m["via"]] += 1
     weekly_kg_rows = [
-        {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1)}
+        {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "kg": round(kg, 1), "p": False}
         for (s, w, cw, v, ex), kg in kg_agg.items()
     ]
+
+    # -- Kg PROYECTADO: promedio histórico de Kg por PO/instrucción confirmada,
+    #    por Vía (Marítimo/Aéreo), × Nº de instrucciones proyectadas de esa
+    #    semana. Pedido por el usuario como respaldo mientras no haya Kg real
+    #    para las instrucciones 'Proyectado' de Horizon.
+    avg_kg_by_via = {
+        via: kg_sum_by_via[via] / n_bk_con_kg_by_via[via]
+        for via in kg_sum_by_via if n_bk_con_kg_by_via[via] > 0
+    }
+    projected_kg_rows = []
+    for (via, shipper, week, cweek), n_instr in n_instr_bucket.items():
+        avg_kg = avg_kg_by_via.get(via)
+        if not avg_kg:
+            continue
+        projected_kg_rows.append({
+            "s": SEASON, "w": week, "cw": cweek, "v": via, "ex": shipper,
+            "kg": round(avg_kg * n_instr, 1), "p": True,
+        })
+    total_proj_kg = sum(r["kg"] for r in projected_kg_rows)
 
     data["weekly"].extend(actual_weekly_rows)
     data["weekly"].extend(projected_rows)
     data["bookings"].extend(actual_booking_rows)
-    data["weekly_kg"] = data.get("weekly_kg", []) + weekly_kg_rows
+    data["weekly_kg"] = data.get("weekly_kg", []) + weekly_kg_rows + projected_kg_rows
 
     # -- resumen "current_season" (panel Temporada actual) --
     by_concepto = defaultdict(lambda: {"usd": 0.0, "n": 0})
@@ -434,18 +457,20 @@ def main():
         f"clasificación OPEX. Actualiza estos archivos y vuelve a correr el ETL para "
         f"ampliar la cobertura del cruce."
     )
+    avg_kg_txt = " · ".join(f"{v}: {avg_kg_by_via[v]:,.0f} kg/PO" for v in avg_kg_by_via)
     data["meta"]["kg_note"] = (
         "El modo USD/Kg usa el peso neto (Net weight) real de los despachos "
         "CONFIRMADOS de T26-27 en Horizon "
         f"({n_bookings_con_kg} de {len(confirmed_map)} bookings confirmados traen Kg; "
         "se detectaron ~20 filas con el peso cargado en gramos en vez de kg "
         "-valores >100,000- y se normalizaron ÷1000). "
+        "Para el tramo PROYECTADO de T26-27 (línea punteada), Horizon no trae Kg "
+        "todavía: se estima con el promedio histórico de Kg por PO/instrucción "
+        f"confirmada de cada Vía ({avg_kg_txt}) × Nº de instrucciones proyectadas de "
+        "esa semana — mismo criterio que la proyección en USD. "
         "No hay dato de Kg para T23-24/T24-25/T25-26 (no viene en el dataset histórico "
-        "ya agregado) ni para la parte proyectada de T26-27 (Horizon no trae Net weight "
-        "en las filas con Status='Proyectado' todavía). Esas series no se muestran en "
-        "modo USD/Kg hasta tener una fuente de Kg exportados por semana para las "
-        "temporadas cerradas, o hasta que Horizon complete el peso estimado de los "
-        "despachos proyectados."
+        "ya agregado); esas 3 series no se grafican en modo USD/Kg hasta tener una "
+        "fuente de Kg exportados por semana para esas temporadas."
     )
 
     with open(DATA_JSON, "w", encoding="utf-8") as f:
@@ -454,6 +479,8 @@ def main():
     print("n_matched:", n_matched, "total matched usd:", round(sum(r['usd'] for r in matched), 2))
     print("projected usd:", round(total_proj_usd, 2), "n projected rows:", len(projected_rows))
     print("kg buckets:", len(weekly_kg_rows), "bookings con kg:", n_bookings_con_kg)
+    print("avg kg/PO by via:", {k: round(v,1) for k,v in avg_kg_by_via.items()})
+    print("projected kg rows:", len(projected_kg_rows), "total projected kg:", round(total_proj_kg,1))
 
 
 def fmt_usd(v):
