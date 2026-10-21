@@ -779,14 +779,24 @@ function axisOpts(){
 
 function renderResumenCharts(wk, wkProj){
   wkProj = wkProj || [];
+  // último cw con dato real por temporada, para no duplicar/superponer la
+  // proyección con semanas que ya tienen dato real (mismo criterio que usa
+  // el gráfico para cortar el tramo punteado).
+  const lastActualCwBySeason = new Map();
+  wk.forEach(r => { const cur = lastActualCwBySeason.get(r.s); if (cur===undefined || r.cw>cur) lastActualCwBySeason.set(r.s, r.cw); });
+  const wkProjFuture = wkProj.filter(r => {
+    const last = lastActualCwBySeason.get(r.s);
+    return last===undefined || r.cw > last;
+  });
+
   const fcEl = document.getElementById('forecastNote');
   if (fcEl){
-    if (wkProj.length){
-      const total = wkProj.reduce((a,r)=>a+r.usd,0);
+    if (wkProjFuture.length){
+      const total = wkProjFuture.reduce((a,r)=>a+r.usd,0);
       // r.n (nº de instrucciones del bucket vía×exportador×semana) se repite en
       // cada fila OPEX de ese bucket: deduplicar antes de sumar.
       const seenBuckets = new Set(); let nInstr = 0;
-      wkProj.forEach(r => { const k = r.v+'|'+r.ex+'|'+r.w+'|'+r.cw; if (!seenBuckets.has(k)){ seenBuckets.add(k); nInstr += r.n; } });
+      wkProjFuture.forEach(r => { const k = r.v+'|'+r.ex+'|'+r.w+'|'+r.cw; if (!seenBuckets.has(k)){ seenBuckets.add(k); nInstr += r.n; } });
       const f = DATA.meta.forecast || {};
       const semanas = f.semanas_cubiertas ? `semanas S${f.semanas_cubiertas[0]}–S${f.semanas_cubiertas[1]}` : '';
       fcEl.innerHTML = `⚠ Proyección bajo filtro actual: <strong>${fmtUSD(total)}</strong> (~${fmtInt(nInstr)} instrucciones proyectadas, ${semanas}). No está incluida en el KPI "Sobrecosto total" ni en las demás pestañas — es un estimado, ver botón <strong>i</strong>.`;
@@ -856,10 +866,14 @@ function renderResumenCharts(wk, wkProj){
     });
     // Proyección: en modo Kg se divide usando el Kg proyectado (promedio
     // histórico de Kg/PO por Vía × Nº de instrucciones proyectadas), ya que
-    // Horizon no trae peso real para instrucciones 'Proyectado'.
-    if (s.perCwProj.size){
+    // Horizon no trae peso real para instrucciones 'Proyectado'. Solo se
+    // dibuja HACIA ADELANTE del último punto real (nunca superpuesta con el
+    // tramo sólido), aunque haya instrucciones 'Proyectado' con semana
+    // anterior al último dato real ya confirmado.
+    if (s.perCwProj.size && lastActualCw !== null){
       const projData = cwRange.map(c => {
         if (c === lastActualCw) return valueAt(s.perCw, s.perCwKg, c) ?? null; // conecta con el tramo real
+        if (c < lastActualCw) return null; // no superponer con el tramo real
         if (!kgMode) return s.perCwProj.get(c) ?? null;
         return valueAt(s.perCwProj, s.perCwKgProj, c) ?? null;
       });
