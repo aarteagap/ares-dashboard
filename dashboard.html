@@ -1003,6 +1003,17 @@ function yesterdayDDMMYYYY(){ return offsetDateDDMMYYYY(-1); }
 let fcMetric = 'fcl';
 let fcDetailRows = []; // snapshot de las filas que componen la Curva global (post-filtros), para el botón "Detalle"
 
+// Orden "de campaña": una campaña (ej. 2026-2027) arranca ~S20 y corre hasta
+// S53, y continúa en S1-S18 del año calendario siguiente — cronológicamente
+// esas semanas van DESPUÉS de S53, no antes. Un sort numérico plano (a-b)
+// pone S1 a la izquierda de S20 porque 1 < 20, aunque S1 sea en realidad el
+// cierre de la campaña. Este comparador empuja S1-S18 al final conservando
+// su orden interno, sin tocar S19-S53.
+function cmpCampaignWeek(a, b){
+  const rank = w => w < 19 ? w + 100 : w;
+  return rank(a) - rank(b);
+}
+
 function fcAggregate(rows, weeks){
   const byWeek = {};
   weeks.forEach(wk=>{ byWeek[wk] = {wk, label:'S'+wk, fcl_conf:0,pal_conf:0, fcl_proj:0,pal_proj:0, fcl_add:0,pal_add:0, fcl_expo:0,pal_expo:0, fcl_exadd:0,pal_exadd:0, fcl_airadd:0,pal_airadd:0, fcl_cancelado:0,pal_cancelado:0, fcl_pre_conf:0,pal_pre_conf:0, fcl_add_conf:0,pal_add_conf:0, fcl_exadd_conf:0,pal_exadd_conf:0 }; });
@@ -1047,7 +1058,7 @@ function renderForecast(){
   const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
-  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort(cmpCampaignWeek);
   const pods = [...new Set(rows.map(r=>r.pod).filter(Boolean))].sort();
   const lines = [...new Set(rows.map(r=>r.line).filter(Boolean))].sort();
   const transportOps = [...new Set(rows.map(r=>r.transport_operator).filter(Boolean))].sort();
@@ -1165,8 +1176,8 @@ function refreshForecast(){
   msdRebuild('msd-fc-logop', [...new Set(fcCascadeExcl('logop').map(r=>r.log_op).filter(Boolean))].sort());
   msdRebuild('msd-fc-market', [...new Set(fcCascadeExcl('market').map(r=>r.market).filter(Boolean))].sort());
 
-  const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const weeks = selWeeks.length ? selWeeks.slice().sort((a,b)=>a-b) : allWeeks;
+  const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort(cmpCampaignWeek);
+  const weeks = selWeeks.length ? selWeeks.slice().sort(cmpCampaignWeek) : allWeeks;
 
   const wks = fcAggregate(ft, weeks);
   const wAir = fcAggregate(ft.filter(r=>r.mode==='Aéreo'), weeks);
@@ -1184,7 +1195,7 @@ function refreshForecast(){
   // Proyección 6W: suma de Proyección (PRE) de las últimas 6 semanas (Pack Plan) que
   // existan en el dataset — siempre las últimas 6 reales, sin importar qué esté
   // tildado en el checklist de Pack Plan del filtro.
-  const allWeeksSorted = [...new Set(ftBeforeWeekFilter.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const allWeeksSorted = [...new Set(ftBeforeWeekFilter.map(r=>r.pack_plan))].sort(cmpCampaignWeek);
   const last6Weeks = allWeeksSorted.slice(-6);
   const wks6 = fcAggregate(ftBeforeWeekFilter, last6Weeks);
   const totP6W = sum(wks6.map(w=>w[kP]));
