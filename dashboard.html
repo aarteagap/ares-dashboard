@@ -784,6 +784,11 @@ let USER_ALLOWED_TABS = null;
 let USER_AIR_RECENT_ONLY = false;
 let AIR_LOGOP_KEYS = null;
 let AIR_ACTIVE_LOGOP = null;
+// Clave maestra: una entrada de air_logop_keys mapeada al sentinel AIR_MASTER_KEY_VALUE
+// en vez de a un nombre de operador. Con esa clave, Air Program se desbloquea
+// completo (todos los operadores, filtro normal) en vez de quedar fijo a uno solo.
+const AIR_MASTER_KEY_VALUE = '__ALL__';
+let AIR_MASTER_MODE = false;
 let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE,HORIZON_RANGE;
 
 async function tryLogin(){
@@ -806,6 +811,7 @@ async function tryLogin(){
   USER_AIR_RECENT_ONLY = !!(profile && profile.air_recent_only);
   AIR_LOGOP_KEYS = (profile && profile.air_logop_keys && typeof profile.air_logop_keys === 'object' && Object.keys(profile.air_logop_keys).length) ? profile.air_logop_keys : null;
   AIR_ACTIVE_LOGOP = null;
+  AIR_MASTER_MODE = false;
   document.getElementById('sbRoleName').textContent = profile?.full_name || email;
   document.getElementById('sbRoleTag').textContent = 'rol: ' + USER_ROLE;
   document.getElementById('gateOverlay').style.display = 'none';
@@ -2272,7 +2278,12 @@ function airSubmitKey(){
     input.focus();
     return;
   }
-  AIR_ACTIVE_LOGOP = match;
+  if (match === AIR_MASTER_KEY_VALUE){
+    AIR_MASTER_MODE = true;
+    AIR_ACTIVE_LOGOP = null;
+  } else {
+    AIR_ACTIVE_LOGOP = match;
+  }
   document.getElementById('p-air').innerHTML = renderAir();
   refreshAir();
 }
@@ -2281,14 +2292,15 @@ function airSubmitKey(){
 // respaldo de vacíos/no-reconocidos) — un solo punto de verdad que usan
 // tanto renderAir (opciones iniciales de Pack Plan/Dispatch Date) como
 // refreshAir (filtrado + cascada), para que ningún checklist se arme con
-// fechas/semanas que no existen en el universo de ese operador.
+// fechas/semanas que no existen en el universo de ese operador. La clave
+// maestra (AIR_MASTER_MODE) no recorta nada — ve todos los operadores.
 function airLogopScope(rows){
-  if (!AIR_ACTIVE_LOGOP) return rows;
+  if (AIR_MASTER_MODE || !AIR_ACTIVE_LOGOP) return rows;
   const knownOps = Object.values(AIR_LOGOP_KEYS || {});
   return rows.filter(r => r.log_op === AIR_ACTIVE_LOGOP || !r.log_op || !knownOps.includes(r.log_op));
 }
 function renderAir(){
-  if (AIR_LOGOP_KEYS && !AIR_ACTIVE_LOGOP) return renderAirKeyGate();
+  if (AIR_LOGOP_KEYS && !AIR_ACTIVE_LOGOP && !AIR_MASTER_MODE) return renderAirKeyGate();
   const rows = airLogopScope(AIR || []);
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort(cmpDDMMYYYY);
@@ -2312,7 +2324,8 @@ function renderAir(){
       ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
       <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="airSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
       `}
-      ${AIR_LOGOP_KEYS ? `<span class="pill ok" style="font-family:'JetBrains Mono',monospace;">🔒 Logistics Operator (fijo): ${AIR_ACTIVE_LOGOP}</span>` : msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
+      ${(AIR_LOGOP_KEYS && !AIR_MASTER_MODE) ? `<span class="pill ok" style="font-family:'JetBrains Mono',monospace;">🔒 Logistics Operator (fijo): ${AIR_ACTIVE_LOGOP}</span>` : msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
+      ${AIR_MASTER_MODE ? `<span class="pill neu" style="font-family:'JetBrains Mono',monospace;">🔓 Clave maestra: todos los operadores</span>` : ''}
     </div>
   </div>
   <div id="air-kg"></div>
